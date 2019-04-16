@@ -1,5 +1,3 @@
-#pset5: Magic Harp
-
 # common import
 import sys
 sys.path.append('..')
