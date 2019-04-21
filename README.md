@@ -4,6 +4,8 @@
 
 Make sure you have Synapse installed on your computer - this is needed to receive Kinect skeleton information.
 
+The `tripy` module is required to create meshes. Install it using `pip install tripy`.
+
 The `run.sh` shell script launches both Synapse and ShapeSynth in one terminal for convenience (only works on Mac). To use it, follow these instructions:
 
 1. Plug the Kinect into your computer.
