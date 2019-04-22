@@ -13,7 +13,8 @@ from common.mixer import *
 import numpy as np
 
 from synth import *
-
+from noise import *
+from filter import *
 import time
 
 # if __name__ == "__main__":
@@ -32,6 +33,7 @@ import time
 
 
 from fm import *
+from shape_synth import *
 
 class MainWidget(BaseWidget) :
     def __init__(self):
@@ -58,6 +60,7 @@ class MainWidget(BaseWidget) :
 
         self.audio.set_generator(self.mixer)
 
+
     def on_update(self):
         self.audio.on_update()
 
@@ -66,17 +69,12 @@ class MainWidget(BaseWidget) :
 
         xx = x / (2*self.center_x)
         yy = y / (2*self.center_y)
+        pitch = int(66 + (18 + 36 * (1 - yy)) * (xx - 0.5))
 
-        print(xx, yy)
+        ss = ShapeSynth(xx, yy)
 
-        ce = Envelope.magic_envelope(1-yy)
-        me = Envelope.magic_envelope(1-yy)
+        self.mixer.add(ss.make_note(pitch, 1))
 
-        pitch = int(48 + 36 * xx)
-
-        fm_fact = FMFactory(0.5, 0, 1, 1, ce, me)
-
-        self.mixer.add(fm_fact.create_fm(pitch))
 
 
 run(MainWidget, title="Synth Test")
