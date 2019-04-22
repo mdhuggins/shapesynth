@@ -16,8 +16,7 @@ import tripy
 import matplotlib.pyplot as plt
 
 from composer import *
-from synth.generator import *
-from synth.envelope import *
+from synth.shape_synth import *
 
 class Shape(InstructionGroup):
     """
@@ -68,19 +67,28 @@ class Shape(InstructionGroup):
         Builds this shape's Composer using its location and properties of its
         vertices.
         """
-        center = np.mean(np.array(self.points), axis=0) / np.array([Window.width, Window.height])
-        self.composer = Composer(sched, mixer, self.make_simple_note,
-                                 np.clip(center[0] * 0.7 + 0.2, 0.2, 0.7), # pitch range
-                                 center[0] / 2.0, # pitch variance
-                                 center[0] / 2.0, # complexity
+        point_array = np.array(self.points)
+        center = np.mean(point_array, axis=0) / np.array([Window.width, Window.height])
+        area = (np.max(point_array[:,0]) - np.min(point_array[:,0])) * (np.max(point_array[:,1]) - np.min(point_array[:,1]))
+        min_gain = 0.05
+        max_gain = 0.3
+        gain = np.clip(area / 10000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
+
+        self.synth = ShapeSynth(center[0], center[1], gain)
+        pitch_range = np.clip((66 + (18 + 36 * (1 - center[1])) * (center[0] - 0.5)) / 120.0, 0.0, 1.0)
+        self.composer = Composer(sched, mixer, self.synth.make_note,
+                                 np.sqrt(center[0]), # pitch range
+                                 (center[0] / 2.0) ** 2, # pitch variance
+                                 center[0] ** 3, # complexity
                                  1.0 - center[1], # harmonic obedience
                                  4) # number of beats to generate
         self.composer.start()
 
-    def make_simple_note(self, pitch, dur):
-        note_gen = NoteGenerator(int(pitch), 0.1)
-        env_params = Envelope.magic_envelope(0.6)
-        return Envelope(note_gen, *env_params)
+    # def make_simple_note(self, pitch, dur):
+    #     note_gen = NoteGenerator(int(pitch), 0.1)
+    #     env_params = Envelope.magic_envelope(0.6)
+    #     return Envelope(note_gen, *env_params)
+
 
 SHAPE_CLOSE_THRESHOLD = 20
 MAX_DISTANCE_THRESHOLD = 30
@@ -189,7 +197,7 @@ class ShapeCreator(InstructionGroup):
             new_pos = self.source()
             # Only accept every third point (since data can be noisy)
             self.gesture_pos_idx = (self.gesture_pos_idx + 1) % 3
-            if self.gesture_pos_idx == 0:
+            if self.gesture_pos_idx == 0 and new_pos is not None:
                 self.add_position(new_pos[:2].tolist())
 
     def hide_transition(self, final_points, callback):

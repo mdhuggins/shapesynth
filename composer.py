@@ -7,6 +7,7 @@ class Conductor(object):
     """
     triplet_preference = 0.5
     speed_preference = 0.5
+    obedience_preference = 1.0
     scheduler = None
     harmony = [0, 4, 7]
     scale = [0, 2, 4, 5, 7, 9, 11]
@@ -48,37 +49,43 @@ class Conductor(object):
         elif change_flag < 0.6:
             Conductor.speed_preference = np.clip(Conductor.speed_preference - 0.1, 0.0, 1.0)
 
+        change_flag = np.random.random()
+        if change_flag < 0.3:
+            Conductor.obedience_preference = np.clip(Conductor.obedience_preference + 0.1, 0.0, 1.0)
+        elif change_flag < 0.6:
+            Conductor.obedience_preference = np.clip(Conductor.obedience_preference - 0.1, 0.0, 1.0)
+
         next_beat = quantize_tick_up(self.scheduler.get_tick(), kTicksPerQuarter)
         self.update_cmd = self.scheduler.post_at_tick(Conductor.update, next_beat)
 
 RHYTHMS = [
-    # triplet, speed, complexity, rhythm (sums to 480)
-    (0.0, 0.0, 0.05, [480]),
-    (0.0, 0.0, 0.1, [240, 240]),
-    (0.0, 0.0, 0.15, [240, 120, 120]),
-    (0.0, 0.0, 0.15, [120, 120, 240]),
+    # base probability, triplet, speed, complexity, rhythm (sums to 480)
+    (8, 0.0, 0.0, 0.05, [480]),
+    (10, 0.0, 0.0, 0.1, [240, 240]),
+    (10, 0.0, 0.0, 0.15, [240, 120, 120]),
+    (10, 0.0, 0.0, 0.15, [120, 120, 240]),
 
-    (0.0, 0.25, 0.15, [120, 120, 120, 120]),
-    (0.0, 0.25, 0.2, [60, 60, 120, 120, 120]),
-    (0.0, 0.25, 0.3, [120, 60, 60, 120, 120]),
-    (0.0, 0.25, 0.25, [120, 120, 60, 60, 120]),
-    (0.0, 0.25, 0.3, [120, 120, 120, 60, 60]),
-    (0.0, 0.25, 0.5, [120, 60, 120, 60, 60, 60]),
-    (0.0, 0.25, 0.5, [120, 60, 120, 120, 60]),
-    (0.0, 0.25, 0.5, [60, 120, 120, 60, 120]),
+    (5, 0.0, 0.25, 0.15, [120, 120, 120, 120]),
+    (5, 0.0, 0.25, 0.2, [60, 60, 120, 120, 120]),
+    (5, 0.0, 0.25, 0.3, [120, 60, 60, 120, 120]),
+    (5, 0.0, 0.25, 0.25, [120, 120, 60, 60, 120]),
+    (5, 0.0, 0.25, 0.3, [120, 120, 120, 60, 60]),
+    (5, 0.0, 0.25, 0.5, [120, 60, 120, 60, 60, 60]),
+    (5, 0.0, 0.25, 0.5, [120, 60, 120, 120, 60]),
+    (5, 0.0, 0.25, 0.5, [60, 120, 120, 60, 120]),
 
-    (0.0, 0.6, 0.3, [60, 60, 120, 60, 60, 120]),
-    (0.0, 0.6, 0.35, [60, 60, 120, 120, 60, 60]),
-    (0.0, 0.6, 0.3, [120, 60, 60, 120, 60, 60]),
-    (0.0, 0.6, 0.4, [120, 60, 60, 60, 60, 120]),
-    (0.0, 0.6, 0.35, [120, 120, 60, 60, 60, 60]),
-    (0.0, 0.6, 0.35, [120, 120, 60, 60, 60, 60]),
+    (3, 0.0, 0.6, 0.3, [60, 60, 120, 60, 60, 120]),
+    (3, 0.0, 0.6, 0.35, [60, 60, 120, 120, 60, 60]),
+    (3, 0.0, 0.6, 0.3, [120, 60, 60, 120, 60, 60]),
+    (3, 0.0, 0.6, 0.4, [120, 60, 60, 60, 60, 120]),
+    (3, 0.0, 0.6, 0.35, [120, 120, 60, 60, 60, 60]),
+    (3, 0.0, 0.6, 0.35, [120, 120, 60, 60, 60, 60]),
 
-    (0.25, 0.4, 0.4, [120, 40, 40, 40, 120, 120]),
-    (0.25, 0.4, 0.4, [120, 120, 40, 40, 40, 120]),
-    (0.5, 0.4, 0.5, [40, 40, 40, 120, 40, 40, 40, 120]),
-    (0.5, 0.4, 0.5, [120, 120, 40, 40, 40, 40, 40, 40]),
-    (1.0, 0.4, 0.6, [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40]),
+    (1, 0.25, 0.4, 0.4, [120, 40, 40, 40, 120, 120]),
+    (1, 0.25, 0.4, 0.4, [120, 120, 40, 40, 40, 120]),
+    (1, 0.5, 0.4, 0.5, [40, 40, 40, 120, 40, 40, 40, 120]),
+    (1, 0.5, 0.4, 0.5, [120, 120, 40, 40, 40, 40, 40, 40]),
+    (1, 1.0, 0.4, 0.6, [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40]),
 ]
 
 class Composer(object):
@@ -92,8 +99,8 @@ class Composer(object):
         generators.
 
         sched: a scheduler on which notes will be queued
-        note_factory: a callable that takes a MIDI pitch and duration in seconds,
-            and returns a note generator
+        note_factory: a callable that takes a MIDI pitch, velocity in [0.0, 1.0],
+            and duration in seconds, and returns a note generator
         pitch_level: a float in [0.0, 1.0] that indicates how low/high the pitches
             should be
         pitch_variance: a float in [0.0, 1.0] indicating how much to vary the
@@ -122,7 +129,7 @@ class Composer(object):
         def update(tick, ignore):
             next_beat = quantize_tick_up(tick + 1, self.update_interval * kTicksPerQuarter)
             self.update_composition(next_beat)
-            self.update_cmd = self.sched.post_at_tick(update, next_beat + self.update_interval * kTicksPerQuarter // 2)
+            self.update_cmd = self.sched.post_at_tick(update, next_beat + self.update_interval * kTicksPerQuarter - np.random.randint(100, 200))
         self.update_cmd = self.sched.post_at_tick(update, self.sched.get_tick())
 
     def stop(self):
@@ -146,6 +153,8 @@ class Composer(object):
                 last_note = current_measure[-1][0]
         else:
             last_note = None
+        if np.random.random() < self.pitch_variance:
+            last_note = None
 
         new_notes = self.generate_note_sequence(last_note)
         self.queued_notes.append(new_notes)
@@ -162,7 +171,8 @@ class Composer(object):
         """
         pitch, dur = note_params
         dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
-        note_gen = self.note_factory(pitch, dur_sec)
+        # Currently not using note velocity
+        note_gen = self.note_factory(pitch, 1.0, dur_sec)
         self.mixer.add(note_gen)
 
     def generate_note_sequence(self, last_note=None):
@@ -185,8 +195,9 @@ class Composer(object):
         Selects a sequence of durations to add up to `update_interval` beats.
         """
         probs = []
-        for triplet, speed, complexity, rhythm in RHYTHMS:
-            prob = self.rhythm_property_factor(triplet, Conductor.triplet_preference)
+        for baseline, triplet, speed, complexity, rhythm in RHYTHMS:
+            prob = baseline
+            prob += self.rhythm_property_factor(triplet, Conductor.triplet_preference)
             prob += self.rhythm_property_factor(speed, Conductor.speed_preference)
             prob += self.rhythm_property_factor(complexity, self.complexity)
             probs.append(prob)
@@ -204,8 +215,8 @@ class Composer(object):
         """
 
         steepness = 20.0
-        result = (1.0 - preferred) ** 4 / (factor + (1.0 / steepness))
-        result += preferred ** 4 / (1 - factor + (1.0 / steepness))
+        result = (1.0 - preferred) ** 6 / (factor + (1.0 / steepness))
+        result += preferred ** 6 / (1 - factor + (1.0 / steepness))
         return result
 
     def obedience_factor(self, tick):
@@ -214,8 +225,8 @@ class Composer(object):
         beats are more harmonically obedient.
         """
 
-        obed = self.harmonic_obedience
-        for i, tick_mod in [(2, 480), (4, 480 * 2), (8, 480 * 4)]:
+        obed = np.clip((self.harmonic_obedience + Conductor.obedience_preference) / 2.0, 0.0, 1.0)
+        for i, tick_mod in [(4, 480), (8, 480 * 2), (16, 480 * 4)]:
             if tick % tick_mod == 0 and tick != 0:
                 obed = obed / i + (i - 1) / i
         return obed
@@ -234,7 +245,7 @@ class Composer(object):
 
         # Make pitch classes in harmony more likely
         for pitch_class in Conductor.harmony:
-            probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - self.harmonic_obedience)
+            probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - obedience_factor)
 
         if last_note is not None:
             last_pitch_class = last_note % 12
