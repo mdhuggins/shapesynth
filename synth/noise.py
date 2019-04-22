@@ -10,7 +10,7 @@ class NoiseGenerator(object):
         super(NoiseGenerator, self).__init__()
 
         # Validate args
-        assert type(gain) in (float, int) and gain >= 0
+        assert gain >= 0
 
         # Setup generator
         self.gain = gain
@@ -35,7 +35,7 @@ class NoiseGenerator(object):
         """
         # Validate args
         assert num_channels == 1
-        assert type(num_frames) is int and num_frames >= 0
+        assert num_frames >= 0
 
         # If not playing, return zeros
         if not self.playing:

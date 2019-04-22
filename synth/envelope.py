@@ -1,5 +1,7 @@
 from random import random
+
 from common.audio import *
+
 import numpy as np
 
 
@@ -16,15 +18,15 @@ class Envelope(object):
         super(Envelope, self).__init__()
 
         # Validate args
-        assert type(attack_time) in (float, int) and attack_time >= 0
-        assert type(n1) in (float, int) and n1 > 0
-        assert type(decay_time) in (float, int) and attack_time >= 0
-        assert type(n2) in (float, int) and n2 > 0
+        assert attack_time >= 0
+        assert n1 > 0
+        assert attack_time >= 0
+        assert n2 > 0
 
         self.generator = generator
         self.envelope = self.make_envelope(attack_time, n1, decay_time, n2)
 
-        # TODO
+        # TODO Improve (used for modulation)
         if hasattr(self.generator, 'freq'):
             self.freq = self.generator.freq
         else:
@@ -47,10 +49,10 @@ class Envelope(object):
         :return: the envelope (np.array([float]))
         """
         # Validate args
-        assert type(attack_time) in (float, int) and attack_time >= 0
-        assert type(n1) in (float, int) and n1 > 0
-        assert type(decay_time) in (float, int) and attack_time >= 0
-        assert type(n2) in (float, int) and n2 > 0
+        assert attack_time >= 0
+        assert n1 > 0
+        assert attack_time >= 0
+        assert n2 > 0
 
         # Convert durations from seconds to frames
         fs = Audio.sample_rate
@@ -86,7 +88,7 @@ class Envelope(object):
         """
         # Validate args
         assert num_channels == 1
-        assert type(num_frames) is int and num_frames >= 0
+        assert num_frames >= 0
 
         # Get generator output
         raw_frames, playing = self.generator.generate(num_frames, num_channels)
@@ -121,7 +123,7 @@ class Envelope(object):
             and much longer release.
 
         :param p: the "percussive-ness" parameter (float in range [0,1])
-        :return: attack, attack_slope, release, release_slope
+        :return: attack, attack slope, release, release slope
         """
         assert 0 <= p <= 1
 
