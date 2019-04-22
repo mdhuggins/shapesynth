@@ -1,7 +1,7 @@
 from common.audio import *
 import numpy as np
 
-from util import pitch_to_freq
+from .util import pitch_to_freq
 
 class NoteGenerator(object):
     def __init__(self, pitch, gain, overtones=list([1]), phi=0):

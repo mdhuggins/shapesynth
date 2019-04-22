@@ -12,33 +12,35 @@ from common.mixer import *
 
 import numpy as np
 
-from synth import *
-from noise import *
-from filter import *
+from .noise import *
+from .filter import *
 import time
-from fm import *
-from envelope import *
+from .fm import *
+from .envelope import *
 
-from util import pitch_to_freq
+from .util import pitch_to_freq
 
 
 class ShapeSynth(object):
-    def __init__(self, x, y):
+    def __init__(self, x, y, gain):
         """
 
         :param x: in range [0,1]
         :param y: in range [0,1]
+        :param gain: in range [0,1]
         """
         super(ShapeSynth, self).__init__()
 
         self.x = x
         self.y = y
+        self.gain = gain
 
 
-    def make_note(self, pitch, duration):
+    def make_note(self, pitch, velocity, duration):
         """
 
         :param pitch: MIDI
+        :param velocity: in range [0,1]
         :param duration: seconds
         :return: a generator
         """
@@ -48,14 +50,16 @@ class ShapeSynth(object):
         ce = Envelope.magic_envelope(max(0, 1 - y - (1 - x) / 4))
         me = ce
 
-        cgain = 0.5 * ((y) * (1 - x)) ** (1 / 2.5)
+        gain = self.gain * velocity
+
+        cgain = gain * ((y) * (1 - x)) ** (1 / 2.5)
 
         fm_fact = FMFactory(cgain, 0, 1, 1, ce, me)
 
         ne = Envelope.magic_envelope(
             max(0, 1 - x ** 2 / 3.5 - (1 - y) * x / 15))
 
-        noise = NoiseGenerator(0.2 * (1 - y) ** 2)
+        noise = NoiseGenerator(gain * 0.2 * (1 - y) ** 2)
         noise = Envelope(noise, *ne)
         f0 = pitch_to_freq(pitch)
 

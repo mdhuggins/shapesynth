@@ -1,6 +1,6 @@
 from common.audio import *
-from generator import *
-from envelope import *
+from .generator import *
+from .envelope import *
 import numpy as np
 
 
