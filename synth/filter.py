@@ -7,6 +7,7 @@ class Filter(object):
     def __init__(self, generator, filter_type, freq):
         super(Filter, self).__init__()
 
+        assert type(freq) in (int, float, list)
         assert filter_type in ['lowpass', 'highpass', 'bandpass']
         if filter_type == "bandpass":
             assert len(freq) == 2

@@ -1,7 +1,8 @@
 from common.audio import *
+from .util import pitch_to_freq
+
 import numpy as np
 
-from .util import pitch_to_freq
 
 class NoteGenerator(object):
     def __init__(self, pitch, gain, overtones=list([1]), phi=0):
@@ -14,14 +15,13 @@ class NoteGenerator(object):
                 overtones[1] is the gain of the 1st overtone, and overtones[n]
                 is the gain of the nth overtone. Defaults to [1], which
                 corresponds to a pure sine wave at the fundamental frequency.
+        :param phi: the phase offset, in radians
         """
         super(NoteGenerator, self).__init__()
 
         # Validate args
-        assert type(gain) in (float, int) and gain >= 0
-        assert type(pitch) in (float, int)
-        assert type(overtones) is list and len(overtones) >= 1 \
-               and all([type(o) in (float, int) for o in overtones])
+        assert gain >= 0
+        assert len(overtones) >= 1
 
         # Setup generator
         self.freq = pitch_to_freq(pitch)
@@ -49,7 +49,7 @@ class NoteGenerator(object):
         """
         # Validate args
         assert num_channels == 1
-        assert type(num_frames) is int and num_frames >= 0
+        assert num_frames >= 0
 
         # If not playing, return zeros
         if not self.playing:
@@ -77,7 +77,6 @@ class NoteGenerator(object):
         :param pitch: MIDI pitch (float)
         :return: frequency, in Hz (float)
         """
-        assert type(pitch) in (float, int)
         return 440 * 2**((pitch - 69) / 12)
 
     @staticmethod
@@ -127,10 +126,13 @@ class NoteGenerator(object):
 
 class ModulatedGenerator(NoteGenerator):
     def __init__(self, pitch, gain, modulator, overtones=list([1]), mod_gain=5):
-        """ Make a new note generator.
+        """ Make a new modulated note generator. This generator creates notes
+            just like NoteGenerator, except the generated signal is modulated
+            by the output of the modulator.
 
         :param pitch: the MIDI pitch to generate (int)
         :param gain: the amplitude of the output (float >=0)
+        :param modulator: the generator to be used for modulation
         :param overtones: the relative gains of each overtone, such that
                 overtones[0] is the gain of the fundamental frequency,
                 overtones[1] is the gain of the 1st overtone, and overtones[n]
@@ -151,7 +153,7 @@ class ModulatedGenerator(NoteGenerator):
         """
         # Validate args
         assert num_channels == 1
-        assert type(num_frames) is int and num_frames >= 0
+        assert num_frames >= 0
 
         # If not playing, return zeros
         if not self.playing:
@@ -182,6 +184,7 @@ class ModulatedGenerator(NoteGenerator):
 
         :param pitch: the MIDI pitch to generate (int)
         :param gain: the amplitude of the output (float >=0)
+        :param modulator: the generator to be used for modulation
         :return: a sine wave generator (NoteGenerator)
         """
         return ModulatedGenerator(pitch, gain, modulator)
@@ -192,6 +195,7 @@ class ModulatedGenerator(NoteGenerator):
 
         :param pitch: the MIDI pitch to generate (int)
         :param gain: the amplitude of the output (float >=0)
+        :param modulator: the generator to be used for modulation
         :return: a square wave generator (NoteGenerator)
         """
         overtones = [1 / (k + 1) if k % 2 == 0 else 0 for k in range(30)]
@@ -203,6 +207,7 @@ class ModulatedGenerator(NoteGenerator):
 
         :param pitch: the MIDI pitch to generate (int)
         :param gain: the amplitude of the output (float >=0)
+        :param modulator: the generator to be used for modulation
         :return: a triangle wave generator (NoteGenerator)
         """
         # Formula from https://en.wikipedia.org/wiki/Triangle_wave#Harmonics (use sine instead of cosine)
@@ -215,6 +220,7 @@ class ModulatedGenerator(NoteGenerator):
 
         :param pitch: the MIDI pitch to generate (int)
         :param gain: the amplitude of the output (float >=0)
+        :param modulator: the generator to be used for modulation
         :return: a sawtooth wave generator (NoteGenerator)
         """
         overtones = [(-1**(k+2))/(k+1) for k in range(30)]
