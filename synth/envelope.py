@@ -25,7 +25,10 @@ class Envelope(object):
         self.envelope = self.make_envelope(attack_time, n1, decay_time, n2)
 
         # TODO
-        self.freq = self.generator.freq
+        if hasattr(self.generator, 'freq'):
+            self.freq = self.generator.freq
+        else:
+            self.freq = None
 
         # State information
         self.frame = 0
