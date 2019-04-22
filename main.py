@@ -20,9 +20,6 @@ from common.kinect import *
 
 from shape import *
 from gesture import *
-from composer import *
-from synth.generator import *
-from synth.envelope import *
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -44,8 +41,8 @@ class MainWidget(BaseWidget) :
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
         self.audio.set_generator(self.sched)
-        self.composer = Composer(self.sched, self.mixer, self.make_simple_note, 0.6, 0.2, 0.6, 0.6, 4)
-        self.composer.start()
+        Conductor.initialize(self.sched)
+        Conductor.start()
 
         # Set up kinect
         self.kinect = Kinect()
@@ -74,11 +71,6 @@ class MainWidget(BaseWidget) :
 
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
-
-    def make_simple_note(self, pitch, dur):
-        note_gen = NoteGenerator(int(pitch), 0.1)
-        env_params = Envelope.magic_envelope(0.6)
-        return Envelope(note_gen, *env_params)
 
     def on_update(self) :
         self.info.text = ''
@@ -156,7 +148,7 @@ class MainWidget(BaseWidget) :
         new_points = [((points[i] - points[0]) * self.shape_scale + points[0], (points[i + 1] - points[1]) * self.shape_scale + points[1]) for i in range(0, len(points), 2)]
 
         # Create and add the shape
-        new_shape = Shape(new_points, (0.5, 0.7, 0.8))
+        new_shape = Shape(new_points, (0.5, 0.7, 0.8), self.sched, self.mixer)
         self.shapes.append(new_shape)
 
         # Animate out shape creator

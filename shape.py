@@ -1,6 +1,7 @@
 from common.core import *
 from common.gfxutil import *
 from common.audio import *
+from common.mixer import *
 from common.synth import *
 from common.clock import *
 
@@ -14,15 +15,21 @@ from scipy.signal import lfilter, butter
 import tripy
 import matplotlib.pyplot as plt
 
+from composer import *
+from synth.generator import *
+from synth.envelope import *
+
 class Shape(InstructionGroup):
     """
     Represents a 2D shape on the canvas.
     """
 
-    def __init__(self, points, color):
+    def __init__(self, points, color, sched, mixer):
         """
         points - a list of points bounding the shape
         color - a tuple (H, S, V) representing the shape's color
+        sched - a scheduler on which to build the composer
+        mixer - the mixer to which to add notes
         """
         super(Shape, self).__init__()
         self.points = points
@@ -37,6 +44,8 @@ class Shape(InstructionGroup):
         self.curve = Line(points=[coord for point in self.points for coord in point], segments=20 * len(self.points), loop=True)
         self.curve.width = 3.0
         self.add(self.curve)
+
+        self.make_composer(sched, mixer)
 
     def make_mesh(self):
         """
@@ -53,6 +62,25 @@ class Shape(InstructionGroup):
         for point1, point2, point3 in triangles:
             indices += [self.points.index(point1), self.points.index(point2), self.points.index(point3)]
         return Mesh(vertices=vertices, indices=indices, mode='triangles')
+
+    def make_composer(self, sched, mixer):
+        """
+        Builds this shape's Composer using its location and properties of its
+        vertices.
+        """
+        center = np.mean(np.array(self.points), axis=0) / np.array([Window.width, Window.height])
+        self.composer = Composer(sched, mixer, self.make_simple_note,
+                                 np.clip(center[0] * 0.7 + 0.2, 0.2, 0.7), # pitch range
+                                 center[0] / 2.0, # pitch variance
+                                 center[0] / 2.0, # complexity
+                                 1.0 - center[1], # harmonic obedience
+                                 4) # number of beats to generate
+        self.composer.start()
+
+    def make_simple_note(self, pitch, dur):
+        note_gen = NoteGenerator(int(pitch), 0.1)
+        env_params = Envelope.magic_envelope(0.6)
+        return Envelope(note_gen, *env_params)
 
 SHAPE_CLOSE_THRESHOLD = 20
 MAX_DISTANCE_THRESHOLD = 30

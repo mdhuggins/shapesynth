@@ -10,27 +10,31 @@ class Conductor(object):
     scheduler = None
     harmony = [0, 4, 7]
     scale = [0, 2, 4, 5, 7, 9, 11]
+    playing = False
 
     @staticmethod
     def initialize(sched):
         Conductor.scheduler = sched
 
+    @classmethod
     def start(self):
         if self.playing: return
         self.playing = True
-        next_beat = quantize_tick_up(self.sched.get_tick(), kTicksPerQuarter)
-        self.update_cmd = self.sched.post_at_tick(Conductor.update, next_beat)
+        next_beat = quantize_tick_up(self.scheduler.get_tick(), kTicksPerQuarter)
+        self.update_cmd = self.scheduler.post_at_tick(Conductor.update, next_beat)
 
+    @classmethod
     def stop(self):
         if not self.playing: return
         self.playing = False
         self.sched.remove(self.update_cmd)
 
+    @classmethod
     def toggle(self):
         if self.playing: self.stop()
         else: self.start()
 
-    @staticmethod
+    @classmethod
     def update(self, tick, ignore):
         change_flag = np.random.random()
         if change_flag < 0.3:
@@ -44,8 +48,8 @@ class Conductor(object):
         elif change_flag < 0.6:
             Conductor.speed_preference = np.clip(Conductor.speed_preference - 0.1, 0.0, 1.0)
 
-        next_beat = quantize_tick_up(self.sched.get_tick(), kTicksPerQuarter)
-        self.update_cmd = self.sched.post_at_tick(Conductor.update, next_beat)
+        next_beat = quantize_tick_up(self.scheduler.get_tick(), kTicksPerQuarter)
+        self.update_cmd = self.scheduler.post_at_tick(Conductor.update, next_beat)
 
 RHYTHMS = [
     # triplet, speed, complexity, rhythm (sums to 480)
@@ -88,8 +92,8 @@ class Composer(object):
         generators.
 
         sched: a scheduler on which notes will be queued
-        note_factory: a callable that takes a MIDI pitch and duration, and
-            returns a note generator
+        note_factory: a callable that takes a MIDI pitch and duration in seconds,
+            and returns a note generator
         pitch_level: a float in [0.0, 1.0] that indicates how low/high the pitches
             should be
         pitch_variance: a float in [0.0, 1.0] indicating how much to vary the
@@ -156,7 +160,9 @@ class Composer(object):
         """
         Called by the scheduler to create a note with the given parameters.
         """
-        note_gen = self.note_factory(*note_params)
+        pitch, dur = note_params
+        dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
+        note_gen = self.note_factory(pitch, dur_sec)
         self.mixer.add(note_gen)
 
     def generate_note_sequence(self, last_note=None):
@@ -180,22 +186,36 @@ class Composer(object):
         """
         probs = []
         for triplet, speed, complexity, rhythm in RHYTHMS:
-            prob = triplet * Conductor.triplet_preference + (1 - triplet) * (1 - Conductor.triplet_preference)
-            prob *= speed * Conductor.speed_preference + (1 - speed) * (1 - Conductor.speed_preference)
-            prob *= complexity * self.complexity + (1 - complexity) * (1 - self.complexity)
+            prob = self.rhythm_property_factor(triplet, Conductor.triplet_preference)
+            prob += self.rhythm_property_factor(speed, Conductor.speed_preference)
+            prob += self.rhythm_property_factor(complexity, self.complexity)
             probs.append(prob)
 
         probs = np.array(probs)
         probs /= np.sum(probs)
-        print(probs)
         base_rhythm = np.array(RHYTHMS[np.random.choice(range(len(RHYTHMS)), p=probs)][-1])
         return (base_rhythm * self.update_interval).tolist()
 
+    def rhythm_property_factor(self, factor, preferred):
+        """
+        Computes a scale value determining how likely to choose a rhythm
+        with the given property `factor`, given that the composer prefers rhythms
+        at the `preferred` amount of that property.
+        """
+
+        steepness = 20.0
+        result = (1.0 - preferred) ** 4 / (factor + (1.0 / steepness))
+        result += preferred ** 4 / (1 - factor + (1.0 / steepness))
+        return result
+
     def obedience_factor(self, tick):
-        """Computes a harmonic obedience given a tick value, such that strong
-        beats are more harmonically obedient."""
+        """
+        Computes a harmonic obedience given a tick value, such that strong
+        beats are more harmonically obedient.
+        """
+
         obed = self.harmonic_obedience
-        for i, tick_mod in [(2, 480), (4, 480 * 2), (6, 480 * 4)]:
+        for i, tick_mod in [(2, 480), (4, 480 * 2), (8, 480 * 4)]:
             if tick % tick_mod == 0 and tick != 0:
                 obed = obed / i + (i - 1) / i
         return obed
