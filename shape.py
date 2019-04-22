@@ -72,16 +72,25 @@ class Shape(InstructionGroup):
         area = (np.max(point_array[:,0]) - np.min(point_array[:,0])) * (np.max(point_array[:,1]) - np.min(point_array[:,1]))
         min_gain = 0.05
         max_gain = 0.3
-        gain = np.clip(area / 10000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
+        gain = np.clip(area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
 
         self.synth = ShapeSynth(center[0], center[1], gain)
+        self.synth.on_note = self.on_note
         self.composer = Composer(sched, mixer, self.synth.make_note,
                                  np.sqrt(center[0] * 0.7), # pitch range
                                  (center[0] / 2.0) ** 2, # pitch variance
-                                 center[0] ** 6, # complexity
+                                 1 / (1 + np.exp(-(center[0] - 0.6) / 6.0)), # complexity
                                  np.sqrt(1.0 - center[0]), # harmonic obedience
+                                 1 - center[0], # bass preference
                                  4 if center[0] > 0.3 else 8) # number of beats to generate
         self.composer.start()
+
+    def on_note(self, pitch, velocity, dur):
+        """Called when the ShapeSynth plays a note."""
+        self.fill_color.a = 0.8
+        def reset(ignore):
+            self.fill_color.a = 0.5
+        kivyClock.schedule_once(reset, dur / 2.0)
 
     # def make_simple_note(self, pitch, dur):
     #     note_gen = NoteGenerator(int(pitch), 0.1)

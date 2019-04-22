@@ -9,7 +9,7 @@ class Conductor(object):
     speed_preference = 0.5
     obedience_preference = 1.0
     scheduler = None
-    harmony = [0, 4, 7]
+    harmony = [0, 4, 7, 9]
     scale = [0, 2, 4, 5, 7, 9, 11]
     playing = False
 
@@ -62,17 +62,23 @@ RHYTHMS = [
     # base probability, triplet, speed, complexity, rhythm (sums to 480)
     (8, 0.0, 0.0, 0.05, [480]),
     (10, 0.0, 0.0, 0.1, [240, 240]),
+    (9, 0.0, 0.0, 0.1, [240, -240]),
+    (5, 0.0, 0.0, 0.1, [-240, 240]),
+    (6, 0.0, 0.0, 0.15, [-240, 120, 120]),
     (10, 0.0, 0.0, 0.15, [240, 120, 120]),
+    (6, 0.0, 0.0, 0.15, [240, 120, -120]),
     (10, 0.0, 0.0, 0.15, [120, 120, 240]),
 
     (5, 0.0, 0.25, 0.15, [120, 120, 120, 120]),
     (5, 0.0, 0.25, 0.2, [60, 60, 120, 120, 120]),
+    (5, 0.0, 0.25, 0.2, [60, 60, 120, -120, 120]),
     (5, 0.0, 0.25, 0.3, [120, 60, 60, 120, 120]),
-    (5, 0.0, 0.25, 0.25, [120, 120, 60, 60, 120]),
-    (5, 0.0, 0.25, 0.3, [120, 120, 120, 60, 60]),
-    (5, 0.0, 0.25, 0.5, [120, 60, 120, 60, 60, 60]),
-    (5, 0.0, 0.25, 0.5, [120, 60, 120, 120, 60]),
-    (5, 0.0, 0.25, 0.5, [60, 120, 120, 60, 120]),
+    (5, 0.0, 0.25, 0.3, [120, 60, 60, 120, -120]),
+    (4, 0.0, 0.25, 0.25, [120, 120, 60, 60, 120]),
+    (4, 0.0, 0.25, 0.3, [120, 120, 120, 60, 60]),
+    (4, 0.0, 0.25, 0.5, [120, 60, 120, 60, 60, 60]),
+    (4, 0.0, 0.25, 0.5, [120, 60, 120, 120, 60]),
+    (4, 0.0, 0.25, 0.5, [60, 120, 120, 60, 120]),
 
     (3, 0.0, 0.6, 0.3, [60, 60, 120, 60, 60, 120]),
     (3, 0.0, 0.6, 0.35, [60, 60, 120, 120, 60, 60]),
@@ -80,11 +86,17 @@ RHYTHMS = [
     (3, 0.0, 0.6, 0.4, [120, 60, 60, 60, 60, 120]),
     (3, 0.0, 0.6, 0.35, [120, 120, 60, 60, 60, 60]),
     (3, 0.0, 0.6, 0.35, [120, 120, 60, 60, 60, 60]),
+    (3, 0.0, 0.6, 0.35, [120, -120, 60, 60, 60, 60]),
 
-    (1, 0.25, 0.4, 0.4, [120, 40, 40, 40, 120, 120]),
-    (1, 0.25, 0.4, 0.4, [120, 120, 40, 40, 40, 120]),
-    (1, 0.5, 0.4, 0.5, [40, 40, 40, 120, 40, 40, 40, 120]),
-    (1, 0.5, 0.4, 0.5, [120, 120, 40, 40, 40, 40, 40, 40]),
+    (1, 0.25, 0.4, 0.4, [120, 180, 60, 120, 120]),
+    (1, 0.25, 0.4, 0.4, [120, 120, 180, 60, 120]),
+    (1, 0.5, 0.4, 0.5, [180, 60, 120, 180, 60, 120]),
+    (1, 0.5, 0.4, 0.5, [180, 180, 180, 180, 60, -60]),
+    #(1, 0.5, 0.4, 0.5, [120, 120, 160, 40, 40, 40, 40]),
+
+    (1, 0.25, 0.4, 0.7, [120, 40, 40, 40, 120, 120]),
+    (1, 0.25, 0.4, 0.7, [120, 120, 40, 40, 40, 120]),
+    (1, 0.5, 0.4, 0.8, [40, 40, 40, 120, 40, 40, 40, 120]),
 ]
 MAX_PITCH = 96
 
@@ -93,7 +105,7 @@ class Composer(object):
     Generates music for a single instrument.
     """
 
-    def __init__(self, sched, mixer, note_factory, pitch_level, pitch_variance, complexity, harmonic_obedience, update_interval):
+    def __init__(self, sched, mixer, note_factory, pitch_level, pitch_variance, complexity, harmonic_obedience, bass_preference, update_interval):
         """
         Initializes a Composer that uses the given note factory to create note
         generators.
@@ -109,6 +121,8 @@ class Composer(object):
             rhythm should be
         harmonic_obedience: a float in [0.0, 1.0] indicating how strongly the
             pitches should follow the harmony
+        bass_preference: a float in [0.0, 1.0] indicating how much to prefer
+            the bass note of the harmony
         update_interval: the number of beats' worth of music that should be
             generated at a time
         """
@@ -119,18 +133,19 @@ class Composer(object):
         self.pitch_variance = pitch_variance
         self.complexity = complexity
         self.harmonic_obedience = harmonic_obedience
+        self.bass_preference = bass_preference
         self.update_interval = update_interval
         self.playing = False
         self.queued_notes = [] # Will contain lists of commands
-        self.rhythm_indexes = []
+        self.last_rhythm = None
 
     def start(self):
         if self.playing: return
         self.playing = True
         def update(tick, ignore):
             next_beat = quantize_tick_up(tick + 1, self.update_interval * kTicksPerQuarter)
-            self.update_composition(next_beat)
-            self.update_cmd = self.sched.post_at_tick(update, next_beat + self.update_interval * kTicksPerQuarter - np.random.randint(100, 200))
+            update_length = self.update_composition(next_beat)
+            self.update_cmd = self.sched.post_at_tick(update, next_beat + update_length - np.random.randint(100, 200))
         self.update_cmd = self.sched.post_at_tick(update, self.sched.get_tick())
 
     def stop(self):
@@ -142,35 +157,55 @@ class Composer(object):
         if self.playing: self.stop()
         else: self.start()
 
+    def clear_notes(self):
+        self.queued_notes = []
+
     def update_composition(self, next_beat):
         """
-        Creates an `update_interval` worth of composition that will start at
-        `next_beat`.
+        Creates at least `update_interval` worth of composition that will start at
+        `next_beat`. Returns the number of ticks that this segment of composition
+        will last.
         """
-        # Get the last note if available
+        new_sequences = []
+
+        # Possibly pop a random amount of past sequences off the stack
         if len(self.queued_notes) > 0:
-            current_measure = self.queued_notes.pop(0)
-            if len(current_measure) > 0:
-                last_note = current_measure[-1][0]
-        else:
-            last_note = None
-        if np.random.random() < self.pitch_variance:
-            last_note = None
+            pop_level = 2 ** int(np.log2(len(self.queued_notes)))
+            while pop_level >= 1 and len(new_sequences) == 0:
+                if np.random.random() < 0.5 * (1 - self.complexity):
+                    new_sequences = self.queued_notes[-pop_level:]
+                    del self.queued_notes[-pop_level:]
+                    break
+                pop_level = pop_level // 2
 
-        if len(self.rhythm_indexes) > 0:
-            last_rhythm = self.rhythm_indexes.pop(0)
-        else:
-            last_rhythm = None
+        # Generate a new sequence
+        if len(new_sequences) == 0:
+            # Get the last note if available
+            if len(self.queued_notes) > 0:
+                current_measure = self.queued_notes[-1]
+                if len(current_measure) > 0:
+                    last_note = current_measure[-1][0]
+            else:
+                last_note = None
+            # Maybe ignore the last note
+            if np.random.random() < self.pitch_variance:
+                last_note = None
 
-        rhythm, new_notes = self.generate_note_sequence(last_note, last_rhythm)
-        self.queued_notes.append(new_notes)
-        self.rhythm_indexes.append(rhythm)
+            rhythm, new_notes = self.generate_note_sequence(last_note, self.last_rhythm)
+            self.last_rhythm = rhythm
+            new_sequences = [new_notes]
+
+        self.queued_notes += new_sequences
 
         # Schedule the notes to be played
         current_tick = 0
+        new_notes = [note for sequence in new_sequences for note in sequence]
         for note_params in new_notes:
-            self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
+            if note_params[0] is not None:
+                self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
             current_tick += note_params[1]
+
+        return current_tick
 
     def play_note(self, tick, note_params):
         """
@@ -192,9 +227,13 @@ class Composer(object):
         print(rhythm)
         current_tick = 0
         for duration in rhythm:
-            last_note = self.pick_note(current_tick, last_note=last_note)
-            new_notes.append((last_note, duration))
-            current_tick += duration
+            if duration < 0:
+                new_notes.append((None, -duration))
+                current_tick += -duration
+            else:
+                last_note = self.pick_note(current_tick, last_note=last_note)
+                new_notes.append((last_note, duration))
+                current_tick += duration
         return index, new_notes
 
     def pick_rhythm(self, last_rhythm=None):
@@ -215,7 +254,6 @@ class Composer(object):
 
         probs = np.array(probs)
         probs /= np.sum(probs)
-        print(last_rhythm, probs)
         rhythm_index = np.random.choice(range(len(RHYTHMS)), p=probs)
         base_rhythm = np.array(RHYTHMS[rhythm_index][-1])
         return rhythm_index, (base_rhythm * self.update_interval).tolist()
@@ -259,13 +297,14 @@ class Composer(object):
         # Make pitch classes in harmony more likely
         for pitch_class in Conductor.harmony:
             probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - obedience_factor) ** 2
+        probs[Conductor.harmony[0]] *= 1 / (1 - self.bass_preference)
 
         if last_note is not None:
             last_pitch_class = last_note % 12
             # Weight pitches closer to this pitch class
             for pitch_class in probs:
                 distance = min((pitch_class - last_pitch_class) % 12, (last_pitch_class - pitch_class) % 12)
-                probs[pitch_class] *= np.exp(-(max(distance, 2) - 1) ** 2 / (2 * 10 ** max(self.pitch_variance, 1e-6)))
+                probs[pitch_class] *= np.exp(-(max(distance, 2) - 2) ** 2 / (2 * 10 ** max(self.pitch_variance, 1e-6)))
 
         pitch_list = sorted(probs.keys())
         pitch_weights = np.array([probs[k] for k in pitch_list])

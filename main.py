@@ -28,6 +28,15 @@ kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
 # Set using sys.argv[1]
 USE_KINECT = False
 
+HARMONIES = [
+    [0, 4, 7, 9],
+    [2, 5, 9, 0],
+    [4, 7, 11, 0],
+    [5, 9, 0, 2],
+    [7, 11, 2, 4],
+    [9, 0, 4, 7]
+]
+
 class MainWidget(BaseWidget) :
     def __init__(self):
         super(MainWidget, self).__init__()
@@ -72,6 +81,9 @@ class MainWidget(BaseWidget) :
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
 
+        self.label = topleft_label()
+        self.add_widget(self.label)
+
     def on_update(self) :
         self.info.text = ''
 
@@ -87,6 +99,23 @@ class MainWidget(BaseWidget) :
             gesture.on_update()
 
         self.interaction_anims.on_update()
+
+        self.label.text = 'harmony: ' + str(Conductor.harmony)
+
+    # Change harmony with keystrokes
+
+    def on_key_down(self, keycode, modifiers):
+        harmony = lookup(keycode[1], '123456', HARMONIES)
+        if harmony is not None:
+            is_different = (harmony != Conductor.harmony)
+            Conductor.harmony = harmony
+            if is_different:
+                for shape in self.shapes:
+                    shape.composer.clear_notes()
+
+        if keycode[1] == 'spacebar':
+            for shape in self.shapes:
+                shape.composer.toggle()
 
     # Mouse movement callbacks
 
