@@ -47,7 +47,7 @@ class ShapeSynth(object):
         x = self.x
         y = self.y
 
-        ce = Envelope.magic_envelope(max(0, 1 - y - (1 - x) / 4))
+        ce = Envelope.magic_envelope(max(0, 1 - y - (1 - x) / 4), duration=duration)
         me = ce
 
         gain = self.gain * velocity
