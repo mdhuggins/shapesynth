@@ -105,7 +105,7 @@ class Composer(object):
     Generates music for a single instrument.
     """
 
-    def __init__(self, sched, mixer, note_factory, pitch_level, pitch_variance, complexity, harmonic_obedience, bass_preference, update_interval):
+    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, update_interval=4):
         """
         Initializes a Composer that uses the given note factory to create note
         generators.

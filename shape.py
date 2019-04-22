@@ -44,6 +44,8 @@ class Shape(InstructionGroup):
         self.curve.width = 3.0
         self.add(self.curve)
 
+        self.make_shape_properties()
+        self.make_synth()
         self.make_composer(sched, mixer)
 
     def make_mesh(self):
@@ -62,27 +64,40 @@ class Shape(InstructionGroup):
             indices += [self.points.index(point1), self.points.index(point2), self.points.index(point3)]
         return Mesh(vertices=vertices, indices=indices, mode='triangles')
 
+    def make_shape_properties(self):
+        """
+        Computes properties about this shape that can be used to make a synth
+        and/or composer.
+        """
+        point_array = np.array(self.points)
+        self.center = np.mean(point_array, axis=0) / np.array([Window.width, Window.height])
+        self.area = (np.max(point_array[:,0]) - np.min(point_array[:,0])) * (np.max(point_array[:,1]) - np.min(point_array[:,1]))
+
+    def make_synth(self):
+        """
+        Creates a ShapeSynth for this shape. TODO: Use properties other than
+        center and area.
+        """
+        min_gain = 0.05
+        max_gain = 0.3
+        gain = np.clip(self.area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
+
+        self.synth = ShapeSynth(self.center[0], self.center[1], gain)
+        self.synth.on_note = self.on_note
+
     def make_composer(self, sched, mixer):
         """
         Builds this shape's Composer using its location and properties of its
         vertices.
         """
-        point_array = np.array(self.points)
-        center = np.mean(point_array, axis=0) / np.array([Window.width, Window.height])
-        area = (np.max(point_array[:,0]) - np.min(point_array[:,0])) * (np.max(point_array[:,1]) - np.min(point_array[:,1]))
-        min_gain = 0.05
-        max_gain = 0.3
-        gain = np.clip(area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
+        self.composer = Composer(sched, mixer, self.synth.make_note)
+        self.composer.pitch_level = np.sqrt(self.center[0] * 0.7)
+        self.composer.pitch_variance = (self.center[0] / 2.0) ** 2
+        self.composer.complexity = 1 / (1 + np.exp(-(self.center[0] - 0.6) / 6.0))
+        self.composer.harmonic_obedience = np.sqrt(1.0 - self.center[0])
+        self.composer.bass_preference = 1 - self.center[0]
+        self.composer.update_interval = 4 if self.center[0] > 0.3 else 8
 
-        self.synth = ShapeSynth(center[0], center[1], gain)
-        self.synth.on_note = self.on_note
-        self.composer = Composer(sched, mixer, self.synth.make_note,
-                                 np.sqrt(center[0] * 0.7), # pitch range
-                                 (center[0] / 2.0) ** 2, # pitch variance
-                                 1 / (1 + np.exp(-(center[0] - 0.6) / 6.0)), # complexity
-                                 np.sqrt(1.0 - center[0]), # harmonic obedience
-                                 1 - center[0], # bass preference
-                                 4 if center[0] > 0.3 else 8) # number of beats to generate
         self.composer.start()
 
     def on_note(self, pitch, velocity, dur):
@@ -91,11 +106,6 @@ class Shape(InstructionGroup):
         def reset(ignore):
             self.fill_color.a = 0.5
         kivyClock.schedule_once(reset, dur / 2.0)
-
-    # def make_simple_note(self, pitch, dur):
-    #     note_gen = NoteGenerator(int(pitch), 0.1)
-    #     env_params = Envelope.magic_envelope(0.6)
-    #     return Envelope(note_gen, *env_params)
 
 
 SHAPE_CLOSE_THRESHOLD = 20
