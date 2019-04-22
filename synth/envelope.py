@@ -111,7 +111,7 @@ class Envelope(object):
         return frames, self.playing
 
     @staticmethod
-    def magic_envelope(generator, p):
+    def magic_envelope(p):
         assert 0 <= p <= 1
 
         # Attack time
@@ -119,23 +119,27 @@ class Envelope(object):
         variable_attack = 0.2
         attack_rand = 0.01
         attack = min_attack + variable_attack * (1-p) + attack_rand * (2*random()-1)
+        attack = max(min_attack, attack)
 
         # Attack slope
         min_attack_slope = 0.5
         variable_attack_slope = 0.5
         attack_slope_rand = 0.05
         attack_slope = min_attack_slope + variable_attack_slope * (1-p) + attack_slope_rand * (2*random()-1)
+        attack_slope = max(min_attack_slope, attack_slope)
 
         # Release time
         min_release = 0.1
-        variable_release = 0.5
+        variable_release = 0.8
         release_rand = 0.1
         release = min_release + variable_release * (1-p) + release_rand * (2*random()-1)
+        release = max(min_release, release)
 
         # Release slope
         min_release_slope = 1
         variable_release_slope = 1
         release_slope_rand = 0.1
         release_slope = min_release_slope + variable_release_slope * p + release_slope_rand * (2*random()-1)
+        release_slope = max(min_release_slope, release_slope)
 
-        return Envelope(generator, attack, attack_slope, release, release_slope)
+        return attack, attack_slope, release, release_slope

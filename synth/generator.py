@@ -125,7 +125,7 @@ class NoteGenerator(object):
 
 
 class ModulatedGenerator(NoteGenerator):
-    def __init__(self, pitch, gain, modulator, overtones=list([1])):
+    def __init__(self, pitch, gain, modulator, overtones=list([1]), mod_gain=5):
         """ Make a new note generator.
 
         :param pitch: the MIDI pitch to generate (int)
@@ -139,6 +139,7 @@ class ModulatedGenerator(NoteGenerator):
         super(ModulatedGenerator, self).__init__(pitch, gain, overtones)
 
         self.modulator = modulator
+        self.mod_gain = 10**mod_gain  # In decibels  # TODO Figure this out
 
     def generate(self, num_frames, num_channels):
         """ Generate frames.
@@ -164,8 +165,7 @@ class ModulatedGenerator(NoteGenerator):
         for i in range(len(self.overtones)):
             frames = np.arange(self.frame, self.frame + num_frames)
             theta = (i+1) * 2 * np.pi * self.freq * frames / Audio.sample_rate
-            print(np.average(mod_frames/mod_omega))
-            output += self.overtones[i] * np.sin(theta + 10e5*mod_frames/mod_omega)
+            output += self.overtones[i] * np.sin(theta + self.mod_gain*mod_frames/mod_omega)
 
         # Apply gain
         output *= self.gain
