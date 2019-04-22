@@ -3,7 +3,7 @@ import numpy as np
 
 class NoiseGenerator(object):
     def __init__(self, gain):
-        """ Make a new note generator.
+        """ Make a new noise generator.
 
         :param gain: the amplitude of the output (float >=0)
         """
@@ -16,7 +16,7 @@ class NoiseGenerator(object):
         self.gain = gain
 
         # State information
-        self.frame = 0  # Keep angle continuous between generate calls
+        self.frame = 0
         self.playing = True
 
     def note_off(self):
