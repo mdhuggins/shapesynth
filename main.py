@@ -5,6 +5,7 @@ sys.path.append('..')
 from common.core import *
 from common.gfxutil import *
 from common.audio import *
+from common.mixer import *
 from common.synth import *
 from common.clock import *
 
@@ -19,6 +20,9 @@ from common.kinect import *
 
 from shape import *
 from gesture import *
+from composer import *
+from synth.generator import *
+from synth.envelope import *
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -34,7 +38,14 @@ class MainWidget(BaseWidget) :
         self.info = topleft_label()
         self.add_widget(self.info)
 
-        self.audio = Audio(2)
+        self.audio = Audio(1)
+        self.mixer = Mixer()
+        self.tempo_map  = SimpleTempoMap(120)
+        self.sched = AudioScheduler(self.tempo_map)
+        self.sched.set_generator(self.mixer)
+        self.audio.set_generator(self.sched)
+        self.composer = Composer(self.sched, self.mixer, self.make_simple_note, 0.6, 0.2, 0.6, 0.6, 4)
+        self.composer.start()
 
         # Set up kinect
         self.kinect = Kinect()
@@ -63,6 +74,11 @@ class MainWidget(BaseWidget) :
 
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
+
+    def make_simple_note(self, pitch, dur):
+        note_gen = NoteGenerator(int(pitch), 0.1)
+        env_params = Envelope.magic_envelope(0.6)
+        return Envelope(note_gen, *env_params)
 
     def on_update(self) :
         self.info.text = ''
