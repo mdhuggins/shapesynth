@@ -12,9 +12,6 @@ from common.mixer import *
 
 import numpy as np
 
-from synth import *
-from noise import *
-from filter import *
 import time
 
 # if __name__ == "__main__":
@@ -32,8 +29,7 @@ import time
     #     plt.show()
 
 
-from fm import *
-from shape_synth import *
+from synth.shape_synth import *
 
 class MainWidget(BaseWidget) :
     def __init__(self):
@@ -59,7 +55,6 @@ class MainWidget(BaseWidget) :
         self.mixer = Mixer()
 
         self.audio.set_generator(self.mixer)
-
 
     def on_update(self):
         self.audio.on_update()

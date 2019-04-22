@@ -115,6 +115,14 @@ class Envelope(object):
 
     @staticmethod
     def magic_envelope(p):
+        """ Create envelope parameters from a single "percussive-ness"
+            parameter. A higher p will result in an envelope with faster attack
+            and release, and a lower p will result in a slightly longer attack,
+            and much longer release.
+
+        :param p: the "percussive-ness" parameter (float in range [0,1])
+        :return: attack, attack_slope, release, release_slope
+        """
         assert 0 <= p <= 1
 
         # Attack time

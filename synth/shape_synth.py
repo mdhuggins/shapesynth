@@ -12,14 +12,13 @@ from common.mixer import *
 
 import numpy as np
 
-from synth import *
-from noise import *
-from filter import *
+from .noise import *
+from .filter import *
 import time
-from fm import *
-from envelope import *
+from .fm import *
+from .envelope import *
 
-from util import pitch_to_freq
+from .util import pitch_to_freq
 
 
 class ShapeSynth(object):
