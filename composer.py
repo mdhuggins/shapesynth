@@ -1,5 +1,6 @@
 import numpy as np
 from common.clock import *
+from multiprocessing import Process, Queue
 
 class Conductor(object):
     """
@@ -28,7 +29,7 @@ class Conductor(object):
     def stop(self):
         if not self.playing: return
         self.playing = False
-        self.sched.remove(self.update_cmd)
+        self.scheduler.remove(self.update_cmd)
 
     @classmethod
     def toggle(self):
@@ -145,18 +146,27 @@ class Composer(object):
         self.queued_notes = [] # Will contain lists of commands
         self.last_rhythm = None
 
+        self.composer_daemon = None
+        self.beat_queue = None
+        self.notes_queue = None
+
     def start(self):
         if self.playing: return
         self.playing = True
-        def update(tick, ignore):
-            next_beat = quantize_tick_up(tick + 1, self.update_interval * kTicksPerQuarter)
-            update_length = self.update_composition(next_beat)
-            self.update_cmd = self.sched.post_at_tick(update, next_beat + update_length - np.random.randint(100, 200))
-        self.update_cmd = self.sched.post_at_tick(update, self.sched.get_tick())
+
+        # Setup asynchronous process
+        self.beat_queue = Queue()
+        self.notes_queue = Queue()
+        self.composer_daemon = Process(target=self.composition_worker, args=(self.beat_queue, self.notes_queue))
+        self.composer_daemon.start()
+
+        self.update_cmd = self.sched.post_at_tick(self._update, self.sched.get_tick())
 
     def stop(self):
         if not self.playing: return
         self.playing = False
+        self.beat_queue.put("KILL")
+        self.composer_daemon.join()
         self.sched.remove(self.update_cmd)
 
     def toggle(self):
@@ -165,6 +175,51 @@ class Composer(object):
 
     def clear_notes(self):
         self.queued_notes = []
+
+    def _update(self, tick, ignore):
+        """Helper method called periodically by scheduler to start asynchronous processing."""
+        next_beat = quantize_tick_up(tick + 1, self.update_interval * kTicksPerQuarter)
+        self.beat_queue.put(next_beat)
+
+    def composition_worker(self, beat_queue, note_queue):
+        """
+        Works on composing new music when it receives a beat time on the beat queue.
+        Saves the notes to add in the note queue.
+        """
+        while self.playing:
+            try:
+                next_beat = beat_queue.get(timeout=0.05)
+            except:
+                next_beat = None
+
+            if next_beat == 'KILL':
+                break
+
+            if next_beat is not None:
+                note_queue.put(self.update_composition(next_beat))
+
+    def on_update(self):
+        """
+        Should be called on every audio frame to update the scheduler when new
+        notes are available.
+        """
+        if not self.playing:
+            return
+
+        try:
+            next_sequence = self.notes_queue.get(block=False)
+        except:
+            next_sequence = None
+        if next_sequence is not None:
+            beat, new_notes = next_sequence
+            current_tick = 0
+            for note_params in new_notes:
+                if note_params[0] is not None:
+                    self.sched.post_at_tick(self.play_note, beat + current_tick, note_params)
+                current_tick += note_params[2]
+
+            # Schedule the next update
+            self.update_cmd = self.sched.post_at_tick(self._update, beat + current_tick - np.random.randint(50, 300))
 
     def update_composition(self, next_beat):
         """
@@ -203,15 +258,8 @@ class Composer(object):
 
         self.queued_notes += new_sequences
 
-        # Schedule the notes to be played
-        current_tick = 0
         new_notes = [note for sequence in new_sequences for note in sequence]
-        for note_params in new_notes:
-            if note_params[0] is not None:
-                self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
-            current_tick += note_params[2]
-
-        return current_tick
+        return next_beat, new_notes
 
     def play_note(self, tick, note_params):
         """

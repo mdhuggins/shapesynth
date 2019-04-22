@@ -43,9 +43,11 @@ class MainWidget(BaseWidget) :
 
         self.info = topleft_label()
         self.add_widget(self.info)
+        Window.bind(on_request_close=self.on_request_close)
 
         self.audio = Audio(1)
         self.mixer = Mixer()
+        self.mixer.set_gain(0.5)
         self.tempo_map  = SimpleTempoMap(120)
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
@@ -84,6 +86,12 @@ class MainWidget(BaseWidget) :
         self.label = topleft_label()
         self.add_widget(self.label)
 
+    def on_request_close(self, *args):
+        Conductor.stop()
+        for shape in self.shapes:
+            shape.composer.stop()
+        return False
+
     def on_update(self) :
         self.info.text = ''
 
@@ -97,6 +105,9 @@ class MainWidget(BaseWidget) :
 
         for gesture in self.gestures:
             gesture.on_update()
+
+        for shape in self.shapes:
+            shape.composer.on_update()
 
         self.interaction_anims.on_update()
 
