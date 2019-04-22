@@ -79,7 +79,7 @@ class Shape(InstructionGroup):
         center and area.
         """
         min_gain = 0.05
-        max_gain = 0.3
+        max_gain = 0.6
         gain = np.clip(self.area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
 
         self.synth = ShapeSynth(self.center[0], self.center[1], gain)
@@ -97,6 +97,8 @@ class Shape(InstructionGroup):
         self.composer.harmonic_obedience = np.sqrt(1.0 - self.center[0])
         self.composer.bass_preference = 1 - self.center[0]
         self.composer.update_interval = 4 if self.center[0] > 0.3 else 8
+        self.composer.velocity_level = 0.5
+        self.composer.velocity_variance = self.center[0] * (1 - self.center[0])
 
         self.composer.start()
 

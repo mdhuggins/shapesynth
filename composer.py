@@ -105,7 +105,7 @@ class Composer(object):
     Generates music for a single instrument.
     """
 
-    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, update_interval=4):
+    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, velocity_level=0.0, velocity_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, update_interval=4):
         """
         Initializes a Composer that uses the given note factory to create note
         generators.
@@ -117,6 +117,10 @@ class Composer(object):
             should be
         pitch_variance: a float in [0.0, 1.0] indicating how much to vary the
             pitch
+        velocity_level: a float in [0.0, 1.0] indicating the average velocity
+            of notes
+        velocity_variance: a float in [0.0, 1.0] indicating how much to vary
+            the velocity
         complexity: a float in [0.0, 1.0] indicating how fast and varied the
             rhythm should be
         harmonic_obedience: a float in [0.0, 1.0] indicating how strongly the
@@ -131,6 +135,8 @@ class Composer(object):
         self.note_factory = note_factory
         self.pitch_level = pitch_level
         self.pitch_variance = pitch_variance
+        self.velocity_level = velocity_level
+        self.velocity_variance = velocity_variance
         self.complexity = complexity
         self.harmonic_obedience = harmonic_obedience
         self.bass_preference = bass_preference
@@ -184,7 +190,7 @@ class Composer(object):
             if len(self.queued_notes) > 0:
                 current_measure = self.queued_notes[-1]
                 if len(current_measure) > 0:
-                    last_note = current_measure[-1][0]
+                    last_note = current_measure[-1]
             else:
                 last_note = None
             # Maybe ignore the last note
@@ -203,7 +209,7 @@ class Composer(object):
         for note_params in new_notes:
             if note_params[0] is not None:
                 self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
-            current_tick += note_params[1]
+            current_tick += note_params[2]
 
         return current_tick
 
@@ -211,10 +217,10 @@ class Composer(object):
         """
         Called by the scheduler to create a note with the given parameters.
         """
-        pitch, dur = note_params
+        pitch, velocity, dur = note_params
         dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
         # Currently not using note velocity
-        note_gen = self.note_factory(pitch, 1.0, dur_sec)
+        note_gen = self.note_factory(pitch, velocity, dur_sec)
         self.mixer.add(note_gen)
 
     def generate_note_sequence(self, last_note=None, last_rhythm=None):
@@ -228,11 +234,11 @@ class Composer(object):
         current_tick = 0
         for duration in rhythm:
             if duration < 0:
-                new_notes.append((None, -duration))
+                new_notes.append((None, None, -duration))
                 current_tick += -duration
             else:
-                last_note = self.pick_note(current_tick, last_note=last_note)
-                new_notes.append((last_note, duration))
+                last_note = self.pick_note(current_tick, duration, last_note=last_note)
+                new_notes.append(last_note)
                 current_tick += duration
         return index, new_notes
 
@@ -282,11 +288,12 @@ class Composer(object):
                 obed = obed / i + (i - 1) / i
         return obed
 
-    def pick_note(self, tick, last_note=None):
+    def pick_note(self, tick, duration, last_note=None):
         """
-        Selects a pitch for the next note to play, based on the given last note
-        (or None). Uses the given tick value to dilate the harmonic obedience
-        so that notes on strong beats are preferentially
+        Selects a pitch for the next note to play, based on the given last note,
+        which contains the pitch, velocity, and duration (or None). Uses the
+        given tick value to dilate the harmonic obedience so that notes on strong
+        beats are preferentially harmonic.
         """
         obedience_factor = self.obedience_factor(tick)
 
@@ -299,8 +306,8 @@ class Composer(object):
             probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - obedience_factor) ** 2
         probs[Conductor.harmony[0]] *= 1 / (1 - self.bass_preference)
 
-        if last_note is not None:
-            last_pitch_class = last_note % 12
+        if last_note is not None and last_note[0] is not None:
+            last_pitch_class = last_note[0] % 12
             # Weight pitches closer to this pitch class
             for pitch_class in probs:
                 distance = min((pitch_class - last_pitch_class) % 12, (last_pitch_class - pitch_class) % 12)
@@ -311,18 +318,28 @@ class Composer(object):
         pitch_weights /= np.sum(pitch_weights)
         selected_pitch_class = np.random.choice(pitch_list, p=pitch_weights)
 
-        if last_note is None:
+        # Choose final pitch
+        if last_note is None or last_note[0] is None:
             pitch = selected_pitch_class + 12 * int(self.pitch_level * 9)
         else:
-            up_pitch = last_note + (selected_pitch_class - last_pitch_class) % 12
-            down_pitch = last_note - (last_pitch_class - selected_pitch_class) % 12
-            pitch = min([up_pitch, down_pitch], key=lambda p: abs(p - last_note))
+            up_pitch = last_note[0] + (selected_pitch_class - last_pitch_class) % 12
+            down_pitch = last_note[0] - (last_pitch_class - selected_pitch_class) % 12
+            pitch = min([up_pitch, down_pitch], key=lambda p: abs(p - last_note[0]))
 
         # Don't let pitch get too high
         while pitch > MAX_PITCH:
             pitch -= 12
 
-        return pitch
+        # Choose velocity
+        if last_note is None or last_note[1] is None:
+            velocity = np.random.normal(self.velocity_level, self.velocity_variance)
+        else:
+            last_velocity = last_note[1]
+            mean = (pitch - last_note[0]) / 20.0
+            velocity = last_velocity + np.random.normal(mean, self.velocity_variance ** 2)
+        velocity = np.clip(velocity, 0.1, 1.0)
+
+        return pitch, velocity, duration
 
 if __name__ == '__main__':
     composer = Composer(None, None, None, 0.5, 0.001, 0.5, 0.1, 4)
