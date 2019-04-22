@@ -75,13 +75,12 @@ class Shape(InstructionGroup):
         gain = np.clip(area / 10000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
 
         self.synth = ShapeSynth(center[0], center[1], gain)
-        pitch_range = np.clip((66 + (18 + 36 * (1 - center[1])) * (center[0] - 0.5)) / 120.0, 0.0, 1.0)
         self.composer = Composer(sched, mixer, self.synth.make_note,
-                                 np.sqrt(center[0]), # pitch range
+                                 np.sqrt(center[0] * 0.7), # pitch range
                                  (center[0] / 2.0) ** 2, # pitch variance
-                                 center[0] ** 3, # complexity
-                                 1.0 - center[1], # harmonic obedience
-                                 4) # number of beats to generate
+                                 center[0] ** 6, # complexity
+                                 np.sqrt(1.0 - center[0]), # harmonic obedience
+                                 4 if center[0] > 0.3 else 8) # number of beats to generate
         self.composer.start()
 
     # def make_simple_note(self, pitch, dur):
