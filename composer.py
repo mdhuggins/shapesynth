@@ -87,6 +87,7 @@ RHYTHMS = [
     (1, 0.5, 0.4, 0.5, [120, 120, 40, 40, 40, 40, 40, 40]),
     (1, 1.0, 0.4, 0.6, [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40]),
 ]
+MAX_PITCH = 96
 
 class Composer(object):
     """
@@ -122,6 +123,7 @@ class Composer(object):
         self.update_interval = update_interval
         self.playing = False
         self.queued_notes = [] # Will contain lists of commands
+        self.rhythm_indexes = []
 
     def start(self):
         if self.playing: return
@@ -156,8 +158,14 @@ class Composer(object):
         if np.random.random() < self.pitch_variance:
             last_note = None
 
-        new_notes = self.generate_note_sequence(last_note)
+        if len(self.rhythm_indexes) > 0:
+            last_rhythm = self.rhythm_indexes.pop(0)
+        else:
+            last_rhythm = None
+
+        rhythm, new_notes = self.generate_note_sequence(last_note, last_rhythm)
         self.queued_notes.append(new_notes)
+        self.rhythm_indexes.append(rhythm)
 
         # Schedule the notes to be played
         current_tick = 0
@@ -175,37 +183,43 @@ class Composer(object):
         note_gen = self.note_factory(pitch, 1.0, dur_sec)
         self.mixer.add(note_gen)
 
-    def generate_note_sequence(self, last_note=None):
+    def generate_note_sequence(self, last_note=None, last_rhythm=None):
         """
         Selects a rhythm and pitches, using the given last note if available.
         """
 
         new_notes = []
-        rhythm = self.pick_rhythm()
+        index, rhythm = self.pick_rhythm(last_rhythm=last_rhythm)
         print(rhythm)
         current_tick = 0
         for duration in rhythm:
             last_note = self.pick_note(current_tick, last_note=last_note)
             new_notes.append((last_note, duration))
             current_tick += duration
-        return new_notes
+        return index, new_notes
 
-    def pick_rhythm(self):
+    def pick_rhythm(self, last_rhythm=None):
         """
         Selects a sequence of durations to add up to `update_interval` beats.
+        last_rhythm may be an index of a rhythm previously used.
         """
         probs = []
-        for baseline, triplet, speed, complexity, rhythm in RHYTHMS:
+        for index, (baseline, triplet, speed, complexity, rhythm) in enumerate(RHYTHMS):
             prob = baseline
             prob += self.rhythm_property_factor(triplet, Conductor.triplet_preference)
             prob += self.rhythm_property_factor(speed, Conductor.speed_preference)
             prob += self.rhythm_property_factor(complexity, self.complexity)
+            if last_rhythm is not None:
+                distance = abs(last_rhythm - index)
+                prob *= np.exp(-(max(distance, 3) - 3) ** 2 / (2 * 10 ** max(self.complexity, 1e-6)))
             probs.append(prob)
 
         probs = np.array(probs)
         probs /= np.sum(probs)
-        base_rhythm = np.array(RHYTHMS[np.random.choice(range(len(RHYTHMS)), p=probs)][-1])
-        return (base_rhythm * self.update_interval).tolist()
+        print(last_rhythm, probs)
+        rhythm_index = np.random.choice(range(len(RHYTHMS)), p=probs)
+        base_rhythm = np.array(RHYTHMS[rhythm_index][-1])
+        return rhythm_index, (base_rhythm * self.update_interval).tolist()
 
     def rhythm_property_factor(self, factor, preferred):
         """
@@ -214,9 +228,9 @@ class Composer(object):
         at the `preferred` amount of that property.
         """
 
-        steepness = 20.0
-        result = (1.0 - preferred) ** 6 / (factor + (1.0 / steepness))
-        result += preferred ** 6 / (1 - factor + (1.0 / steepness))
+        steepness = 60.0
+        result = (1.0 - preferred) ** 3 / (factor + (1.0 / steepness))
+        result += preferred ** 3 / (1 - factor + (1.0 / steepness))
         return result
 
     def obedience_factor(self, tick):
@@ -265,6 +279,10 @@ class Composer(object):
             up_pitch = last_note + (selected_pitch_class - last_pitch_class) % 12
             down_pitch = last_note - (last_pitch_class - selected_pitch_class) % 12
             pitch = min([up_pitch, down_pitch], key=lambda p: abs(p - last_note))
+
+        # Don't let pitch get too high
+        while pitch > MAX_PITCH:
+            pitch -= 12
 
         return pitch
 
