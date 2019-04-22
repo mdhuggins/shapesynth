@@ -80,7 +80,7 @@ class Shape(InstructionGroup):
                                  (center[0] / 2.0) ** 2, # pitch variance
                                  center[0] ** 6, # complexity
                                  np.sqrt(1.0 - center[0]), # harmonic obedience
-                                 4) # number of beats to generate
+                                 4 if center[0] > 0.3 else 8) # number of beats to generate
         self.composer.start()
 
     # def make_simple_note(self, pitch, dur):

@@ -85,7 +85,6 @@ RHYTHMS = [
     (1, 0.25, 0.4, 0.4, [120, 120, 40, 40, 40, 120]),
     (1, 0.5, 0.4, 0.5, [40, 40, 40, 120, 40, 40, 40, 120]),
     (1, 0.5, 0.4, 0.5, [120, 120, 40, 40, 40, 40, 40, 40]),
-    (1, 1.0, 0.4, 0.6, [40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40]),
 ]
 MAX_PITCH = 96
 
@@ -228,7 +227,7 @@ class Composer(object):
         at the `preferred` amount of that property.
         """
 
-        steepness = 60.0
+        steepness = 80.0
         result = (1.0 - preferred) ** 3 / (factor + (1.0 / steepness))
         result += preferred ** 3 / (1 - factor + (1.0 / steepness))
         return result
@@ -259,7 +258,7 @@ class Composer(object):
 
         # Make pitch classes in harmony more likely
         for pitch_class in Conductor.harmony:
-            probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - obedience_factor)
+            probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - obedience_factor) ** 2
 
         if last_note is not None:
             last_pitch_class = last_note % 12
