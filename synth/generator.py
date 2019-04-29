@@ -97,7 +97,7 @@ class NoteGenerator(object):
         :param gain: the amplitude of the output (float >=0)
         :return: a square wave generator (NoteGenerator)
         """
-        overtones = [1 / (k + 1) if k % 2 == 0 else 0 for k in range(30)]
+        overtones = [1 / (k + 1) if k % 2 == 0 else 0 for k in range(10)]
         return NoteGenerator(pitch, gain, overtones)
 
     @staticmethod
@@ -109,7 +109,7 @@ class NoteGenerator(object):
         :return: a triangle wave generator (NoteGenerator)
         """
         # Formula from https://en.wikipedia.org/wiki/Triangle_wave#Harmonics (use sine instead of cosine)
-        overtones = [1] + [(((-1.0j)**k) * (k**-2)).real for k in range(1, 30)]
+        overtones = [1] + [(((-1.0j)**k) * (k**-2)).real for k in range(1, 10)]
         return NoteGenerator(pitch, gain, overtones)
 
     @staticmethod
@@ -120,7 +120,7 @@ class NoteGenerator(object):
         :param gain: the amplitude of the output (float >=0)
         :return: a sawtooth wave generator (NoteGenerator)
         """
-        overtones = [(-1**(k+2))/(k+1) for k in range(30)]
+        overtones = [(-1**(k+2))/(k+1) for k in range(10)]
         return NoteGenerator(pitch, gain, overtones)
 
 
@@ -198,7 +198,7 @@ class ModulatedGenerator(NoteGenerator):
         :param modulator: the generator to be used for modulation
         :return: a square wave generator (NoteGenerator)
         """
-        overtones = [1 / (k + 1) if k % 2 == 0 else 0 for k in range(30)]
+        overtones = [1 / (k + 1) if k % 2 == 0 else 0 for k in range(10)]
         return ModulatedGenerator(pitch, gain, modulator, overtones)
 
     @staticmethod
@@ -211,7 +211,7 @@ class ModulatedGenerator(NoteGenerator):
         :return: a triangle wave generator (NoteGenerator)
         """
         # Formula from https://en.wikipedia.org/wiki/Triangle_wave#Harmonics (use sine instead of cosine)
-        overtones = [1] + [(((-1.0j)**k) * (k**-2)).real for k in range(1, 30)]
+        overtones = [1] + [(((-1.0j)**k) * (k**-2)).real for k in range(1, 10)]
         return ModulatedGenerator(pitch, gain, modulator, overtones)
 
     @staticmethod
@@ -223,5 +223,5 @@ class ModulatedGenerator(NoteGenerator):
         :param modulator: the generator to be used for modulation
         :return: a sawtooth wave generator (NoteGenerator)
         """
-        overtones = [(-1**(k+2))/(k+1) for k in range(30)]
+        overtones = [(-1**(k+2))/(k+1) for k in range(10)]
         return ModulatedGenerator(pitch, gain, modulator, overtones)
