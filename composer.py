@@ -178,7 +178,7 @@ class Composer(object):
         if self.scheduled_to_beat is not None and tick < self.scheduled_to_beat - self.update_interval * kTicksPerQuarter:
             return
 
-        next_beat = quantize_tick_up(tick + kTicksPerQuarter, self.update_interval * kTicksPerQuarter)
+        next_beat = quantize_tick_up(tick + kTicksPerQuarter / 2, self.update_interval * kTicksPerQuarter)
         new_notes = self.update_composition(next_beat)
         if new_notes is not None:
             current_tick = 0
@@ -189,7 +189,7 @@ class Composer(object):
 
             # Schedule the next update
             self.scheduled_to_beat = next_beat + min(current_tick, kTicksPerQuarter * self.update_interval)
-            time = self.scheduled_to_beat - np.random.randint(50, int(self.update_interval * 0.3 * kTicksPerQuarter))
+            time = self.scheduled_to_beat - np.random.randint(kTicksPerQuarter, int(self.update_interval * 0.3 * kTicksPerQuarter))
             self.update_cmd = self.sched.post_at_tick(self._update, time)
 
     def update_composition(self, next_beat):

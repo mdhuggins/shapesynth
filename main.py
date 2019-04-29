@@ -245,6 +245,7 @@ class MainWidget(BaseWidget) :
             self.interaction_anims.remove(self.shape_editor)
             self.shape_editor = None
         self.shape_editor.hide_transition(on_editor_completion)
+        editor.shape.update_sound()
         self.canvas.add(editor.shape)
 
         # Reenable other gestures

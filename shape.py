@@ -82,6 +82,15 @@ class Shape(InstructionGroup):
         self.mesh.vertices = vertices
         self.mesh.indices = indices
 
+    def update_sound(self):
+        """
+        Refreshes the sonic properties of the shape.
+        """
+        self.composer.stop()
+        self.make_shape_properties()
+        self.make_synth()
+        self.make_composer(self.composer.sched, self.composer.mixer)
+
     def make_shape_properties(self):
         """
         Computes properties about this shape that can be used to make a synth
@@ -335,12 +344,6 @@ class ShapeEditor(InstructionGroup):
             new_scale = 1 + (pos[2] - self.original_position[2])
             self.scale.x = new_scale
             self.scale.y = new_scale
-            #self.back_translate.x = 100.0 * new_scale ** 2
-        else:
-            new_scale = 1 + (pos[1] - self.original_position[1]) / 200.0
-            self.scale.x = new_scale
-            self.scale.y = new_scale
-            #self.back_translate.x = 100.0 * new_scale ** 2
 
     def get_current_pos(self):
         return self.current_position
