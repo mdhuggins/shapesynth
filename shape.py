@@ -5,7 +5,7 @@ from common.mixer import *
 from common.synth import *
 from common.clock import *
 
-from kivy.graphics import Color, Line, Mesh
+from kivy.graphics import Color, Line, Mesh, Translate, Scale
 from kivy.graphics.instructions import InstructionGroup
 from kivy.clock import Clock as kivyClock
 
@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from composer import *
 from synth.shape_synth import *
+from gesture import HoldGesture
 
 class Shape(InstructionGroup):
     """
@@ -36,7 +37,8 @@ class Shape(InstructionGroup):
         self.fill_color = Color(hsv=self.hsv)
         self.fill_color.a = 0.5
         self.add(self.fill_color)
-        self.mesh = self.make_mesh()
+        self.mesh = Mesh(mode='triangles')
+        self.update_mesh()
         self.add(self.mesh)
         self.stroke_color = Color(hsv=self.hsv)
         self.add(self.stroke_color)
@@ -48,9 +50,23 @@ class Shape(InstructionGroup):
         self.make_synth()
         self.make_composer(sched, mixer)
 
-    def make_mesh(self):
+    def set_points(self, points):
+        """Takes the given numpy nx2 array of points and sets the shape's points
+        accordingly."""
+        self.points = [tuple(row) for row in points]
+        self.curve.points = [coord for point in self.points for coord in point]
+        self.update_mesh()
+        self.make_shape_properties()
+
+    def hit_test(self, point):
         """
-        Builds the Mesh needed to display this shape.
+        Returns True if the given point is contained within the mesh.
+        """
+        return point[0] >= self.min_x and point[0] <= self.max_x and point[1] >= self.min_y and point[1] <= self.max_y
+
+    def update_mesh(self):
+        """
+        Sets the Mesh's vertices and indices to display this shape.
         """
         vertices = []
         theta = 2 * np.pi / len(self.points)
@@ -62,7 +78,9 @@ class Shape(InstructionGroup):
         indices = []
         for point1, point2, point3 in triangles:
             indices += [self.points.index(point1), self.points.index(point2), self.points.index(point3)]
-        return Mesh(vertices=vertices, indices=indices, mode='triangles')
+
+        self.mesh.vertices = vertices
+        self.mesh.indices = indices
 
     def make_shape_properties(self):
         """
@@ -71,7 +89,11 @@ class Shape(InstructionGroup):
         """
         point_array = np.array(self.points)
         self.center = np.mean(point_array, axis=0) / np.array([Window.width, Window.height])
-        self.area = (np.max(point_array[:,0]) - np.min(point_array[:,0])) * (np.max(point_array[:,1]) - np.min(point_array[:,1]))
+        self.min_x = np.min(point_array[:,0])
+        self.max_x = np.max(point_array[:,0])
+        self.min_y = np.min(point_array[:,1])
+        self.max_y = np.max(point_array[:,1])
+        self.area = (self.max_x - self.min_x) * (self.max_y - self.min_y)
 
     def make_synth(self):
         """
@@ -230,4 +252,123 @@ class ShapeCreator(InstructionGroup):
         self.bg_anim = KFAnim((0.0, self.bg_color.a), (1.0, 0.0))
         self.shape_anim_points = (np.array(self.points), np.array(final_points))
         self.shape_timing = spring_timing_function(1.0)
+        self.anim_completion = callback
+
+class ShapeEditor(InstructionGroup):
+    """
+    Provides a UI for translating, scaling (TODO: distorting) shapes.
+    """
+
+    END_CLICK = "click"
+    END_POSE = "pose"
+
+    def __init__(self, hsv, shape, source, on_complete, end="click"):
+        super(ShapeEditor, self).__init__()
+        self.source = source
+        self.shape = shape
+
+        self.hsv = hsv
+        self.bg_color = Color(hsv=self.hsv)
+        self.bg_color.a = 0.0
+        self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.3))
+        self.add(self.bg_color)
+        self.add(Rectangle(pos=(0,0), size=(Window.width, Window.height)))
+        self.shape_center = self.shape.center * np.array([Window.width, Window.height])
+
+        self.add(PushMatrix())
+        self.translate = Translate(0, 0)
+        self.add(self.translate)
+        #self.back_translate = Translate(x=0.0, y=0.0)
+        #self.add(self.back_translate)
+        self.scale = Scale(1.0)
+        self.scale.origin = self.shape_center
+        self.add(self.scale)
+        self.add(self.shape)
+        self.add(PopMatrix())
+
+        self.accepting_points = True
+        self.gesture_pos_idx = 0
+        self.on_complete = on_complete
+        self.time = 0.0
+        self.anim_completion = None
+        self.end_mode = end
+        self.original_position = None
+        self.current_position = None
+        if self.end_mode == ShapeEditor.END_POSE:
+            self.end_hold = HoldGesture(None, self.get_current_pos, self.end_gesture)
+
+    def add_position(self, pos):
+        """
+        Updates the shape using the given hand position (in 3D if available).
+        """
+        self.current_position = pos
+        if self.original_position is None:
+            self.original_position = pos
+            return
+
+        self.translate.xy = pos[:2] - self.original_position[:2]
+        if len(pos) > 2:
+            new_scale = 1 + (pos[2] - self.original_position[2])
+            self.scale.x = new_scale
+            self.scale.y = new_scale
+            #self.back_translate.x = 100.0 * new_scale ** 2
+        else:
+            new_scale = 1 + (pos[1] - self.original_position[1]) / 200.0
+            self.scale.x = new_scale
+            self.scale.y = new_scale
+            #self.back_translate.x = 100.0 * new_scale ** 2
+
+    def get_current_pos(self):
+        return self.current_position
+
+    def on_update(self, dt):
+        # Handle the background animation
+        if self.bg_anim is not None:
+            self.bg_color.a = self.bg_anim.eval(self.time)
+            if not self.bg_anim.is_active(self.time):
+                self.bg_anim = None
+                if self.anim_completion is not None:
+                    self.anim_completion()
+
+        self.time += dt
+
+        # Handle new points
+        if self.accepting_points:
+            if self.end_mode == ShapeEditor.END_POSE:
+                self.end_hold.on_update()
+
+            new_pos = self.source()
+            if self.end_mode == ShapeEditor.END_CLICK and new_pos is None:
+                self.end_gesture(None)
+
+            # Only accept every third point (since data can be noisy)
+            self.gesture_pos_idx = (self.gesture_pos_idx + 1) % 3
+            if self.gesture_pos_idx == 0 and new_pos is not None:
+                self.add_position(new_pos)
+
+    def end_gesture(self, ignore):
+        """
+        Determines the final set of points to update the shape, and calls the
+        on_complete handler.
+        """
+        self.accepting_points = False
+
+        # Update the shape
+        point_array = np.array(self.shape.points)
+        translation = np.array(self.translate.xy)
+        scale = self.scale.x
+        self.shape.set_points((point_array - self.shape_center) * scale + self.shape_center + translation)
+        self.translate.xy = (0.0, 0.0)
+        self.scale.x = 1.0
+        self.scale.y = 1.0
+
+        self.on_complete(self)
+
+
+    def hide_transition(self, callback):
+        """
+        Performs a hide animation, and calls the given callback function on completion.
+        """
+        self.time = 0.0
+        self.bg_anim = KFAnim((0.0, self.bg_color.a), (1.0, 0.0))
         self.anim_completion = callback

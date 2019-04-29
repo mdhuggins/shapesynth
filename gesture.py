@@ -38,7 +38,7 @@ class HoldGesture(Gesture):
     a fixed period of time.
     """
 
-    def __init__(self, identifier, source, callback, hit_test=None, hold_time=1.0):
+    def __init__(self, identifier, source, callback, hit_test=None, hold_time=0.75):
         """
         Creates a hold gesture. hit_test may be a function taking a point and
         returning a boolean indicating whether the point is within the region
