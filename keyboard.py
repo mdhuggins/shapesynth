@@ -3,7 +3,7 @@ from rtmidi.midiutil import open_midiinput
 
 
 class Keyboard(object):
-    def __init__(self, chord_cb, sustain=True, port=1):
+    def __init__(self, chord_cb, sustain=True, port=0):
         """ Create a new MIDI keyboard listener. The keyboard keeps track of
             the current chord, and calls chord_cb every time the chord changes.
 
@@ -31,7 +31,7 @@ class Keyboard(object):
 
         # Setup MIDI
         self.port = port
-        Keyboard.set_midi_callback(self.handle_midi, self.port)
+        self.set_midi_callback(self.handle_midi, self.port)
 
     def handle_midi(self, msg, data=None):
         """Callback for handling MIDI input"""
@@ -54,8 +54,7 @@ class Keyboard(object):
                     self.chord = self.held_notes.copy()
                     self.chord_cb(self.chord)
 
-    @staticmethod
-    def set_midi_callback(callback, port=1):
+    def set_midi_callback(self, callback, port=1):
         """ Starts listening for MIDI input on a port. If that port is not
             available, prompts for choice on console. Calls callback every
             time MIDI input is received.
@@ -70,5 +69,9 @@ class Keyboard(object):
         :param port: the MIDI port to listen on. Defaults to 1. (int)
         :return: None
         """
-        midiin, port_name = open_midiinput(port)
-        midiin.set_callback(callback)
+        try:
+            midiin, port_name = open_midiinput(port)
+            midiin.set_callback(callback)
+            self.midiin = midiin
+        except OSError:
+            print("No MIDI input ports available.")

@@ -8,6 +8,7 @@ from common.audio import *
 from common.mixer import *
 from common.synth import *
 from common.clock import *
+from common.writer import *
 
 from kivy.graphics import Color, Line
 from kivy.graphics.instructions import InstructionGroup
@@ -20,6 +21,7 @@ from common.kinect import *
 
 from shape import *
 from gesture import *
+from keyboard import *
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -45,7 +47,8 @@ class MainWidget(BaseWidget) :
         self.add_widget(self.info)
         Window.bind(on_request_close=self.on_request_close)
 
-        self.audio = Audio(1)
+        self.writer = AudioWriter('data') # for debugging audio output
+        self.audio = Audio(1, self.writer.add_audio)
         self.mixer = Mixer()
         self.mixer.set_gain(0.5)
         self.tempo_map  = SimpleTempoMap(120)
@@ -83,6 +86,9 @@ class MainWidget(BaseWidget) :
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
 
+        # MIDI
+        self.keyboard = Keyboard(self.on_chord_change)
+
         self.label = topleft_label()
         self.add_widget(self.label)
 
@@ -106,9 +112,6 @@ class MainWidget(BaseWidget) :
         for gesture in self.gestures:
             gesture.on_update()
 
-        for shape in self.shapes:
-            shape.composer.on_update()
-
         self.interaction_anims.on_update()
 
         self.label.text = 'harmony: ' + str(Conductor.harmony)
@@ -127,6 +130,19 @@ class MainWidget(BaseWidget) :
         if keycode[1] == 'spacebar':
             for shape in self.shapes:
                 shape.composer.toggle()
+
+        if keycode[1] == 'z':
+            self.writer.toggle()
+
+    def on_chord_change(self, pitches):
+        """
+        Called when the keyboard's played pitches change.
+        """
+        new_harmony = [pitch % 12 for pitch in sorted(pitches)]
+        if new_harmony != Conductor.harmony:
+            Conductor.harmony = new_harmony
+            for shape in self.shapes:
+                shape.composer.clear_notes()
 
     # Mouse movement callbacks
 

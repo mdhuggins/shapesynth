@@ -1,6 +1,5 @@
 import numpy as np
 from common.clock import *
-from multiprocessing import Process, Queue
 
 class Conductor(object):
     """
@@ -146,27 +145,15 @@ class Composer(object):
         self.queued_notes = [] # Will contain lists of commands
         self.last_rhythm = None
 
-        self.composer_daemon = None
-        self.beat_queue = None
-        self.notes_queue = None
-
     def start(self):
         if self.playing: return
         self.playing = True
-
-        # Setup asynchronous process
-        self.beat_queue = Queue()
-        self.notes_queue = Queue()
-        self.composer_daemon = Process(target=self.composition_worker, args=(self.beat_queue, self.notes_queue))
-        self.composer_daemon.start()
 
         self.update_cmd = self.sched.post_at_tick(self._update, self.sched.get_tick())
 
     def stop(self):
         if not self.playing: return
         self.playing = False
-        self.beat_queue.put("KILL")
-        self.composer_daemon.join()
         self.sched.remove(self.update_cmd)
 
     def toggle(self):
@@ -179,37 +166,7 @@ class Composer(object):
     def _update(self, tick, ignore):
         """Helper method called periodically by scheduler to start asynchronous processing."""
         next_beat = quantize_tick_up(tick + 1, self.update_interval * kTicksPerQuarter)
-        self.beat_queue.put(next_beat)
-
-    def composition_worker(self, beat_queue, note_queue):
-        """
-        Works on composing new music when it receives a beat time on the beat queue.
-        Saves the notes to add in the note queue.
-        """
-        while self.playing:
-            try:
-                next_beat = beat_queue.get(timeout=0.05)
-            except:
-                next_beat = None
-
-            if next_beat == 'KILL':
-                break
-
-            if next_beat is not None:
-                note_queue.put(self.update_composition(next_beat))
-
-    def on_update(self):
-        """
-        Should be called on every audio frame to update the scheduler when new
-        notes are available.
-        """
-        if not self.playing:
-            return
-
-        try:
-            next_sequence = self.notes_queue.get(block=False)
-        except:
-            next_sequence = None
+        next_sequence = self.update_composition(next_beat)
         if next_sequence is not None:
             beat, new_notes = next_sequence
             current_tick = 0
@@ -219,7 +176,7 @@ class Composer(object):
                 current_tick += note_params[2]
 
             # Schedule the next update
-            self.update_cmd = self.sched.post_at_tick(self._update, beat + current_tick - np.random.randint(50, 300))
+            self.update_cmd = self.sched.post_at_tick(self._update, beat + current_tick - np.random.randint(50, int(self.update_interval * 0.7 * kTicksPerQuarter)))
 
     def update_composition(self, next_beat):
         """
@@ -351,7 +308,7 @@ class Composer(object):
 
         # Make pitch classes in harmony more likely
         for pitch_class in Conductor.harmony:
-            probs[pitch_class] = probs.get(pitch_class, 1.0) * 1 / (1 - obedience_factor) ** 2
+            probs[pitch_class] = probs.get(pitch_class, 1.0) * 5 / (1 - obedience_factor) ** 2
         probs[Conductor.harmony[0]] *= 1 / (1 - self.bass_preference)
 
         if last_note is not None and last_note[0] is not None:
@@ -362,7 +319,7 @@ class Composer(object):
                 probs[pitch_class] *= np.exp(-(max(distance, 2) - 2) ** 2 / (2 * 10 ** max(self.pitch_variance, 1e-6)))
 
         pitch_list = sorted(probs.keys())
-        pitch_weights = np.array([probs[k] for k in pitch_list])
+        pitch_weights = np.log(1 + np.array([probs[k] for k in pitch_list]))
         pitch_weights /= np.sum(pitch_weights)
         selected_pitch_class = np.random.choice(pitch_list, p=pitch_weights)
 
