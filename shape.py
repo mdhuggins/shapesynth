@@ -96,6 +96,7 @@ class Shape(InstructionGroup):
         self.composer.complexity = 1 / (1 + np.exp(-(self.center[0] - 0.6) / 6.0))
         self.composer.harmonic_obedience = np.sqrt(1.0 - self.center[0])
         self.composer.bass_preference = 1 - self.center[0]
+        self.composer.arpeggio_preference = 2.0 * self.center[0] * (1 - self.center[0])
         self.composer.update_interval = 4 if self.center[0] > 0.3 else 8
         self.composer.velocity_level = 0.5
         self.composer.velocity_variance = self.center[0] * (1 - self.center[0])

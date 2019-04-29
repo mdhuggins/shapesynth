@@ -51,7 +51,7 @@ class MainWidget(BaseWidget) :
         self.audio = Audio(1, self.writer.add_audio)
         self.mixer = Mixer()
         self.mixer.set_gain(0.5)
-        self.tempo_map  = SimpleTempoMap(120)
+        self.tempo_map  = SimpleTempoMap(92)
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
         self.audio.set_generator(self.sched)
