@@ -72,6 +72,30 @@ class Shape(InstructionGroup):
         point_array = np.array(self.points)
         self.center = np.mean(point_array, axis=0) / np.array([Window.width, Window.height])
         self.area = (np.max(point_array[:,0]) - np.min(point_array[:,0])) * (np.max(point_array[:,1]) - np.min(point_array[:,1]))
+        self.roughness = 1  # In range [0,1]
+
+        r = 0
+
+        for i in range(len(self.points)-4):
+            p0, p1, p2 = self.points[i:i+5:2]
+
+            v0 = np.subtract(p1,p0)
+            v1 = np.subtract(p2,p1)
+
+            # In range [-1,1]
+            dot = np.dot(v0, v1) / (np.linalg.norm(v0) + np.linalg.norm(v1))
+
+            # In range [0,1]
+            dot = (dot+1)/2
+
+            r += 1-np.tanh(dot)
+
+
+        # r /= len(self.points)
+        print(r)
+
+        self.roughness = r/10
+
 
     def make_synth(self):
         """
@@ -82,7 +106,7 @@ class Shape(InstructionGroup):
         max_gain = 0.6
         gain = np.clip(self.area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
 
-        self.synth = ShapeSynth(self.center[0], self.center[1], gain)
+        self.synth = ShapeSynth(self.center[0], self.center[1], gain, self.roughness)
         self.synth.on_note = self.on_note
 
     def make_composer(self, sched, mixer):
