@@ -161,6 +161,6 @@ class Envelope(object):
         release_slope = max(min_release_slope, release_slope)
 
         # Sustain
-        sustain = max(0, duration - attack - release)
+        sustain = max(0, duration - attack - release) * (1-p)
 
         return attack, attack_slope, sustain, release, release_slope
