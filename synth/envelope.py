@@ -1,18 +1,23 @@
 from random import random
 
+
+import sys
+sys.path.append('..')
 from common.audio import *
 
 import numpy as np
 
 
 class Envelope(object):
-    def __init__(self, generator, attack_time, n1, sustain_time, release_time, n2):
+    def __init__(self, generator, attack_time, n1, decay_time, sustain_time, sustain_gain, release_time, n2):
         """ Make a new enveloped generator.
 
         :param generator: the generator to apply the envelope to (Generator)
         :param attack_time: the duration of the attack, in seconds (float >= 0)
         :param n1: the steepness of the attack (float > 0)
+        :param sustain_time: the duration of the decay, in seconds (float >= 0)
         :param sustain_time: the duration of the sustain, in seconds (float >= 0)
+        :param sustain_time: the gain during the sustain, in range [0,1]
         :param release_time: the duration of the release, in seconds (float >= 0)
         :param n2: the steepness of the release (float > 0)
         """
@@ -26,7 +31,7 @@ class Envelope(object):
         assert n2 > 0
 
         self.generator = generator
-        self.envelope = self.make_envelope(attack_time, n1, sustain_time, release_time, n2)
+        self.envelope = self.make_envelope(attack_time, n1, decay_time, sustain_time, sustain_gain, release_time, n2)
 
         # TODO Improve (used for modulation)
         if hasattr(self.generator, 'freq'):
@@ -39,14 +44,16 @@ class Envelope(object):
         self.playing = True
 
     @staticmethod
-    def make_envelope(attack_time, n1, sustain_time, release_time, n2):
+    def make_envelope(attack_time, n1, decay_time, sustain_time, sustain_gain, release_time, n2):
         """ Generate an envelope curve. Returns a numpy array, where the first
             value is zero, the maximum value is 1, and the final value is the
             end of the envelope at 0.
 
         :param attack_time: the duration of the attack, in seconds (float >= 0)
         :param n1: the steepness of the attack (float > 0)
+        :param sustain_time: the duration of the decay, in seconds (float >= 0)
         :param sustain_time: the duration of the sustain, in seconds (float >= 0)
+        :param sustain_time: the gain during the sustain, in range [0,1]
         :param release_time: the duration of the release, in seconds (float >= 0)
         :param n2: the steepness of the release (float > 0)
         :return: the envelope (np.array([float]))
@@ -60,19 +67,21 @@ class Envelope(object):
         # Convert durations from seconds to frames
         fs = Audio.sample_rate
         attack_len = np.floor(attack_time * fs).astype('int')
-        decay_len = np.ceil(release_time * fs).astype('int')
+        release_len = np.ceil(release_time * fs).astype('int')
 
         # Generate each piece
         attack_t = np.arange(attack_len)
         attack = (attack_t / attack_len) ** (1 / n1)
 
-        sustain = np.ones(int(sustain_time * fs))
+        decay = np.linspace(1, sustain_gain, int(decay_time*fs))
 
-        decay_t = np.arange(decay_len + 1)  # Make sure last value is 0
-        decay = 1.0 - (decay_t / decay_len) ** (1 / n2)
+        sustain = np.ones(int(sustain_time * fs)) * sustain_gain
+
+        release_t = np.arange(release_len + 1)  # Make sure last value is 0
+        release = (1.0 - (release_t / release_len) ** (1 / n2)) * sustain_gain
 
         # Join attack and delay together to form complete envelope
-        envelope = np.concatenate((attack, sustain, decay))
+        envelope = np.concatenate((attack, decay, sustain, release))
 
         return envelope
 
@@ -146,6 +155,13 @@ class Envelope(object):
         attack_slope = min_attack_slope + variable_attack_slope * (1-p) + attack_slope_rand * (2*random()-1)
         attack_slope = max(min_attack_slope, attack_slope)
 
+        # Decay time
+        min_decay = 0.01
+        variable_decay = 0.1
+        decay_rand = 0.01
+        decay = min_decay + variable_decay * (1-p) + decay_rand * (2*random()-1)
+        decay = max(min_decay, decay)
+
         # Release time
         min_release = 0.1
         variable_release = 0.8
@@ -161,6 +177,23 @@ class Envelope(object):
         release_slope = max(min_release_slope, release_slope)
 
         # Sustain
-        sustain = max(0, duration - attack - release) * (1-p)
+        sustain = max(0, duration - attack - decay - release) * (1-p)
 
-        return attack, attack_slope, sustain, release, release_slope
+        min_sustain_gain = 0.1
+        max_sustain_gain = 0.8
+        variable_sustain_gain = 0.7
+        sustain_gain_rand = 0.05
+        sustain_gain = min_sustain_gain + variable_sustain_gain * (1-p) + sustain_gain_rand * (2*random()-1)
+        sustain_gain = min(max(min_sustain_gain, sustain_gain), max_sustain_gain)
+
+        return attack, attack_slope, decay, sustain, sustain_gain, release, release_slope
+
+
+# import matplotlib.pyplot as plt
+#
+# for pp in range(10):
+#     p = pp/10
+#     print("p",p)
+#     params = Envelope.magic_envelope(p, 2)
+#     plt.plot(Envelope(None,*params).envelope)
+#     plt.show()
