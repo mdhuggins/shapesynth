@@ -19,7 +19,7 @@ class Keyboard(object):
         :param port: the MIDI port to use. Defaults to 1 (int)
         """
         # Config
-        self.keys_channel = 144  # TODO Is the consistent across controllers?
+        self.keys_channel = 144  # TODO Is this consistent across controllers?
 
         # Current chord
         self.chord = set()  # The current chord
