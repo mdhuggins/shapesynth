@@ -39,6 +39,7 @@ class Shape(InstructionGroup):
         self.fill_color = Color(hsv=self.hsv)
         self.fill_color.a = 0.5
         self.add(self.fill_color)
+        self.shadow_index = len(self.children)
         self.mesh = Mesh(mode='triangles')
         self.update_mesh()
         self.add(self.mesh)
@@ -54,6 +55,9 @@ class Shape(InstructionGroup):
         self.make_shape_properties()
         self.make_synth()
         self.make_composer(sched, mixer)
+        self.colors = [self.fill_color, self.stroke_color]
+        self.shadow_anims = {}
+        self.shadow_reenable_time = 0
         self.update_color()
 
     def set_points(self, points):
@@ -171,21 +175,44 @@ class Shape(InstructionGroup):
 
     def on_note(self, pitch, velocity, dur):
         """Called when the ShapeSynth plays a note."""
-        pass
-        # self.fill_color.a = 0.8
-        # def reset(ignore):
-        #     self.fill_color.a = 0.5
-        # kivyClock.schedule_once(reset, dur / 2.0)
+        if self.color_frozen: return
+        if self.time < self.shadow_reenable_time: return
+
+        center = ((self.min_x + self.max_x) / 2.0, (self.min_y + self.max_y) / 2.0)
+        dim = max(self.max_x - self.min_x, self.max_y - self.min_y) * 1.2
+        new_circle = CEllipse(cpos=center, csize=(dim, dim))
+        color = Color(hsv=self.fill_color.hsv)
+        color.a = 0.1
+        self.colors.append(color)
+        duration = 4.0
+        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 10.0)), KFAnim((0.0, 0.3), (duration, 0.0)))
+        self.insert(self.shadow_index, new_circle)
+        self.insert(self.shadow_index, color)
+        self.shadow_reenable_time = self.time + 1.0
 
     def on_update(self, dt):
         if self.color_anim is not None:
-            new_color = self.color_anim.eval(self.time)
-            self.fill_color.hsv = new_color
-            self.fill_color.a = 0.5
-            self.stroke_color.hsv = new_color
-            if not self.color_anim.is_active(self.time):
+            start_time, anim = self.color_anim
+            new_color = anim.eval(self.time - start_time)
+            for color in self.colors:
+                old_a = color.a
+                color.hsv = new_color
+                color.a = old_a
+            if not anim.is_active(self.time - start_time):
                 self.color_anim = None
-            self.time += dt
+
+        kill_set = set()
+        for (circle, color), (start_time, size_anim, alpha_anim) in self.shadow_anims.items():
+            new_dim = size_anim.eval(self.time - start_time)
+            circle.csize = (new_dim, new_dim)
+            color.a = alpha_anim.eval(self.time - start_time)
+            if not alpha_anim.is_active(self.time - start_time):
+                kill_set.add((circle, color))
+                self.remove(circle)
+                self.remove(color)
+                self.colors.remove(color)
+        self.shadow_anims = {k: v for k, v in self.shadow_anims.items() if k not in kill_set}
+        self.time += dt
 
     def set_color_frozen(self, flag):
         """Controls whether the shape color is allowed to change."""
@@ -196,9 +223,8 @@ class Shape(InstructionGroup):
         if self.color_frozen: return
         if self.color_anim is not None: return
 
-        self.time = 0.0
         new_hsv = self.palette.new_color(self.composer.pitch_level)
-        self.color_anim = KFAnim((0.0, *self.hsv), (1.0, *new_hsv))
+        self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0, *new_hsv)))
         self.hsv = new_hsv
 
 SHAPE_CLOSE_THRESHOLD = 20

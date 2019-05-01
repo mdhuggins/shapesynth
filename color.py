@@ -10,34 +10,16 @@ class ColorPalette(object):
         super(ColorPalette, self).__init__()
         self.cache_harmony = None
         self.hue_variance = 0.1
+        self.hue_average = 0.5
         self.hue_range = (0, 1)
         self.brightness_range = (0.5, 1)
-        self.major_mat = self.roll_vector(np.array([4, 0, 1, 0, 2, 1, 0, 2, 0, 1, 0, 1]))
-        self.minor_mat = self.roll_vector(np.array([4, 0, 1, 2, 0, 1, 0, 2, 1, 0, 1, 0]))
-
-    def roll_vector(self, vec):
-        """Creates a matrix of all possible horizontal shifts of the given vector."""
-        mat = np.tile(vec, (12, 1))
-        new_mat = np.zeros_like(mat)
-        for n in range(mat.shape[0]):
-            new_mat[n] = np.roll(mat[n], n)
-        return new_mat
 
     def process_harmony(self, harmony):
         """
-        Updates the hue range according to the given harmony (set of pitch classes).
+        Updates the hue range when the harmony changes.
         """
-        harmony_vector = np.zeros(12)
-        for pitch in harmony:
-            if pitch < 0 or pitch >= 12: continue
-            harmony_vector[pitch] = 1
-        harmony_vector[min(harmony)] = 2
-        major_coef = np.max(np.dot(self.major_mat, harmony_vector))
-        minor_coef = np.max(np.dot(self.minor_mat, harmony_vector))
-
         # Sample hue using a normal distribution centered around major/minor balance
-        hue_average = ((minor_coef / (major_coef + minor_coef)) - 0.3) / (0.7 - 0.3)
-        hue_average = np.random.normal(hue_average, 0.4)
+        hue_average = np.mod(np.random.uniform(self.hue_average - 0.2, self.hue_average + 0.2), 1.0)
 
         self.hue_range = (np.clip(hue_average - self.hue_variance, 0.0, 1.0), np.clip(hue_average + self.hue_variance, 0.0, 1.0))
         self.cache_harmony = harmony
