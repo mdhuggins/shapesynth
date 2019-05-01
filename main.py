@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 
 from common.kinect import *
 
+from synth.reverb import Reverb
+
 from shape import *
 from gesture import *
 from keyboard import *
@@ -54,7 +56,10 @@ class MainWidget(BaseWidget) :
         self.tempo_map  = SimpleTempoMap(92)
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
-        self.audio.set_generator(self.sched)
+
+        master_reverb = Reverb(self.sched)
+
+        self.audio.set_generator(master_reverb)
         Conductor.initialize(self.sched)
         Conductor.start()
 
