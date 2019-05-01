@@ -242,7 +242,6 @@ class Composer(object):
         """
         pitch, velocity, dur = note_params
         dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
-        # Currently not using note velocity
         note_gen = self.note_factory(pitch, velocity, dur_sec)
         self.mixer.add(note_gen)
 
@@ -346,7 +345,7 @@ class Composer(object):
 
         # Choose final pitch
         if last_note is None or last_note[0] is None:
-            pitch = selected_pitch_class + 12 * int(self.pitch_level * 9)
+            pitch = selected_pitch_class + 12 * int(self.pitch_level * 8)
         else:
             up_pitch = last_note[0] + (selected_pitch_class - last_pitch_class) % 12
             down_pitch = last_note[0] - (last_pitch_class - selected_pitch_class) % 12
@@ -391,7 +390,7 @@ class Composer(object):
             down_pitch = last_pitch - (last_pitch_class - closest_pitch) % 12
             pitch = min([up_pitch, down_pitch], key=lambda p: abs(p - last_pitch))
         else:
-            pitch = closest_pitch + 12 * int(self.pitch_level * 9)
+            pitch = closest_pitch + 12 * int(self.pitch_level * 8)
 
         velocity = last_note[1] if last_note is not None and last_note[1] is not None else np.clip(np.random.normal(self.velocity_level, self.velocity_variance), 0.1, 1.0)
         notes.append((pitch, velocity, durations[0]))
