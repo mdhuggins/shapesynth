@@ -29,8 +29,8 @@ class Sampler(object):
         self.wav_bass = np.concatenate((self.wav_bass, np.zeros(pad-len(self.wav_bass))))
         self.wav_cello = np.concatenate((self.wav_cello, np.zeros(pad-len(self.wav_cello))))
 
-        self.fft_len = 1024 * 8
-        self.hop_size = 512 * 8
+        self.fft_len = 1024 * 6
+        self.hop_size = 512 * 6
 
         # Get spectra
         self.spectra_piano = stft(self.wav_piano, self.fft_len, self.hop_size)
@@ -75,8 +75,8 @@ class Sampler(object):
         norm = bass + cello + piano + glock
 
         # Duration
-        self.duration = 3*(1/bass) + 10*(1/cello) + 6*(1/piano) + 5*(1/glock)
-        self.duration /= (1/bass) + (1/cello) + (1/piano) + (1/glock)
+        self.duration = 2*(bass) + 10*(cello) + 3*(piano) + 2*(glock)
+        self.duration /= (bass) + (cello) + (piano) + (glock)
         print("duration", self.duration)
 
         self.mix = [bass/norm, cello/norm, piano/norm, glock/norm]
@@ -101,13 +101,18 @@ class Sampler(object):
             gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_piano[i] * self.mix[2]
             gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_glock[i] * self.mix[3]
 
+
+        env = np.concatenate((np.ones(int(round(self.duration-1)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
+
+        # Crop spectra
+        gen_spectra = gen_spectra[:,:1+np.ceil(len(env)/self.hop_size).astype('int')]
+
         # Re-synthesize
         frames = istft(gen_spectra, self.hop_size)
 
-        # Apply envelope
-        env = np.concatenate((np.ones(int(round(self.duration-1)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
-        env = np.concatenate((env, np.zeros(len(frames)-len(env))))
 
+        # Apply envelope
+        env = np.concatenate((env, np.zeros(len(frames)-len(env))))
         frames *= env
 
         self.cache[pitch] = frames
@@ -192,7 +197,6 @@ def istft(X, hop_size, centered=True):
     for col in range(X.shape[1]):
         x_h = np.fft.irfft(X[:, col])
         apply_in_window(x, x_h, col * hop_size, centered)
-
     W = np.zeros_like(x)
     for h in range(0, W.shape[0], hop_size):
         sub_w = np.hanning(N)

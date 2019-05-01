@@ -12,6 +12,9 @@ from .envelope import *
 from .util import pitch_to_freq
 from .sampler import *
 
+# TODO Use shape in sound
+# TODO Translate updates sound
+
 class ShapeSynth(object):
     def __init__(self, x, y, gain, roughness):
         """ Create a new ShapeSynth.
