@@ -78,7 +78,7 @@ class Envelope(object):
         sustain = np.ones(int(sustain_time * fs)) * sustain_gain
 
         release_t = np.arange(release_len + 1)  # Make sure last value is 0
-        release = (1.0 - (release_t / release_len) ** (1 / n2)) * sustain_gain
+        release = ((1.0 - release_t / release_len) ** (0.25 / n2)) * sustain_gain
 
         # Join attack and delay together to form complete envelope
         envelope = np.concatenate((attack, decay, sustain, release))
@@ -142,15 +142,15 @@ class Envelope(object):
         assert 0 <= p <= 1
 
         # Attack time
-        min_attack = 0.01
-        variable_attack = 0.2
-        attack_rand = 0.01
+        min_attack = 0.02
+        variable_attack = 0.05
+        attack_rand = 0.005
         attack = min_attack + variable_attack * (1-p) + attack_rand * (2*random()-1)
         attack = max(min_attack, attack)
 
         # Attack slope
-        min_attack_slope = 0.5
-        variable_attack_slope = 0.5
+        min_attack_slope = 0.7
+        variable_attack_slope = 0.2
         attack_slope_rand = 0.05
         attack_slope = min_attack_slope + variable_attack_slope * (1-p) + attack_slope_rand * (2*random()-1)
         attack_slope = max(min_attack_slope, attack_slope)
@@ -163,15 +163,15 @@ class Envelope(object):
         decay = max(min_decay, decay)
 
         # Release time
-        min_release = 0.1
-        variable_release = 0.8
+        min_release = 0.4
+        variable_release = 1.0
         release_rand = 0.1
         release = min_release + variable_release * (1-p) + release_rand * (2*random()-1)
-        release = max(min_release, release)
+        release = max(min_release, min(release, duration - attack - decay))
 
         # Release slope
-        min_release_slope = 1
-        variable_release_slope = 1
+        min_release_slope = 0.2
+        variable_release_slope = 0.5
         release_slope_rand = 0.1
         release_slope = min_release_slope + variable_release_slope * p + release_slope_rand * (2*random()-1)
         release_slope = max(min_release_slope, release_slope)
