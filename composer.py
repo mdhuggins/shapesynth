@@ -12,6 +12,11 @@ class Conductor(object):
     harmony = [0, 4, 7, 9]
     scale = [0, 2, 4, 5, 7, 9, 11]
     playing = False
+    pitch_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+    @staticmethod
+    def harmony_string():
+        return ', '.join([Conductor.pitch_names[i] for i in sorted(Conductor.harmony)])
 
     @staticmethod
     def initialize(sched):
@@ -58,6 +63,28 @@ class Conductor(object):
         next_beat = quantize_tick_up(self.scheduler.get_tick() + 1, kTicksPerQuarter * 8)
         self.update_cmd = self.scheduler.post_at_tick(Conductor.update, next_beat)
 
+def make_euclidean_rhythm(a, b, duration):
+    bit_seq = [[1] for i in range(a)] + [[0] for i in range(b - a)]
+    while len(bit_seq) > 1:
+        partition = next((i for i, x in enumerate(bit_seq) if x != bit_seq[0]), None)
+        if partition is None:
+            break
+        for i in range(min(partition, len(bit_seq) - partition)):
+            bit_seq[i] += bit_seq[i + partition]
+        del bit_seq[partition:]
+    sequence = np.array([elem for seq in bit_seq for elem in seq])
+    result = []
+    current_acc = 0
+    for i in range(len(sequence)):
+        if sequence[i] > 0:
+            if current_acc > 0:
+                result.append(current_acc)
+            current_acc = 0
+        current_acc += duration / len(sequence)
+    if current_acc > 0:
+        result.append(current_acc)
+    return result
+
 RHYTHMS = [
     # base probability, triplet, speed, complexity, rhythm (sums to 480)
     (8, 0.0, 0.0, 0.05, [480]),
@@ -102,6 +129,15 @@ RHYTHMS = [
     (1, 0.25, 0.4, 0.7, [120, 40, 40, 40, 120, 120]),
     (1, 0.25, 0.4, 0.7, [120, 120, 40, 40, 40, 120]),
     (1, 0.5, 0.4, 0.8, [40, 40, 40, 120, 40, 40, 40, 120]),
+
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(3, 6, 480)),
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(4, 6, 480)),
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(5, 6, 480)),
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(3, 8, 480)),
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(4, 8, 480)),
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(5, 8, 480)),
+    (5, 0.5, 0.5, 0.5, make_euclidean_rhythm(6, 8, 480)),
+
 ]
 MAX_PITCH = 96
 
@@ -186,7 +222,7 @@ class Composer(object):
             for note_params in new_notes:
                 if note_params[0] is not None:
                     self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
-                current_tick += note_params[2]
+                current_tick += abs(note_params[2])
 
             # Schedule the next update
             self.scheduled_to_beat = next_beat + min(current_tick, kTicksPerQuarter * self.update_interval)

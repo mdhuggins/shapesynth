@@ -68,6 +68,9 @@ class Shape(InstructionGroup):
         self.update_mesh()
         self.make_shape_properties()
 
+        for (shadow, color) in self.shadow_anims:
+            shadow.cpos = self.center * np.array([Window.width, Window.height])
+
     def set_alpha(self, alpha):
         self.fill_color.a = alpha / 2.0
         self.stroke_color.a = alpha
@@ -481,7 +484,7 @@ class ShapeEditor(InstructionGroup):
         self.scale.y = 1.0
 
         self.on_complete(self, False)
-        if self.end_mode == ShapeEditor.END_CLICK:
+        if self.end_mode == ShapeEditor.END_POSE:
             self.end_hold.set_enabled(False)
 
 

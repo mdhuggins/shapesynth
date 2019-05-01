@@ -95,7 +95,9 @@ class MainWidget(BaseWidget) :
         # MIDI
         self.keyboard = Keyboard(self.on_chord_change)
 
-        self.label = topleft_label()
+        self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
+                  pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
+                  text_size=(Window.width, 200.0))
         self.add_widget(self.label)
 
     def on_request_close(self, *args):
@@ -117,8 +119,8 @@ class MainWidget(BaseWidget) :
             gesture.on_update()
 
         self.interaction_anims.on_update()
-
-        self.label.text = 'harmony: ' + str(Conductor.harmony)
+        if len(self.label.text) == 0:
+            self.label.text = 'harmony: ' + Conductor.harmony_string()
 
     # Change harmony with keystrokes
 
@@ -130,6 +132,7 @@ class MainWidget(BaseWidget) :
             if is_different:
                 for shape in self.shapes:
                     shape.composer.clear_notes()
+                self.label.text = ''
 
         if keycode[1] == 'spacebar':
             for shape in self.shapes:
@@ -147,6 +150,7 @@ class MainWidget(BaseWidget) :
             Conductor.harmony = new_harmony
             for shape in self.shapes:
                 shape.composer.clear_notes()
+        self.label.text = ''
 
     # Mouse movement callbacks
 
@@ -199,6 +203,7 @@ class MainWidget(BaseWidget) :
             # Initialize the shape gesture using the same point source as this hold gesture gesture
             self.shape_creator = ShapeCreator((0.5, 0.7, 0.8), gesture.source, self.on_shape_creator_complete)
             self.interaction_anims.add(self.shape_creator)
+            self.label.text = "Move your hand to draw a closed shape."
 
             # Disable other gestures while creating a shape
             for gest in self.gestures:
@@ -209,6 +214,7 @@ class MainWidget(BaseWidget) :
             self.interaction_anims.remove(editing_shape)
             self.shape_editor = ShapeEditor((0.4, 0.7, 0.8), editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
             self.interaction_anims.add(self.shape_editor)
+            self.label.text = "Move your hand to alter the shape position and size."
 
             # Disable other gestures while editing a shape
             for gest in self.gestures:
@@ -243,6 +249,8 @@ class MainWidget(BaseWidget) :
         else:
             self.gestures.insert(0, HoldGesture(new_shape, self.get_mouse_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
 
+        self.label.text = ''
+
     def on_shape_editor_complete(self, editor, removed):
         """
         Called when the shape editor detects the user is finished.
@@ -261,6 +269,8 @@ class MainWidget(BaseWidget) :
         # Reenable other gestures
         for gesture in self.gestures:
             gesture.set_enabled(True)
+
+        self.label.text = ''
 
 # pass in which MainWidget to run as a command-line arg
 if __name__ == '__main__':
