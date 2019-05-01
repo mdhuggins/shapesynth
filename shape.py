@@ -58,6 +58,10 @@ class Shape(InstructionGroup):
         self.update_mesh()
         self.make_shape_properties()
 
+    def set_alpha(self, alpha):
+        self.fill_color.a = alpha / 2.0
+        self.stroke_color.a = alpha
+
     def hit_test(self, point):
         """
         Returns True if the given point is contained within the mesh.
@@ -296,6 +300,14 @@ class ShapeEditor(InstructionGroup):
     END_POSE = "pose"
 
     def __init__(self, hsv, shape, source, on_complete, end="click"):
+        """
+        hsv: tuple (hue, saturation, value) for the background color
+        shape: the shape to edit
+        source: a callable that generates touch points
+        on_complete: function called when the edit is complete, with two parameters:
+            the shape editor, and whether the shape was removed
+        end: the gesture type that ends editing
+        """
         super(ShapeEditor, self).__init__()
         self.source = source
         self.shape = shape
@@ -323,12 +335,18 @@ class ShapeEditor(InstructionGroup):
         self.gesture_pos_idx = 0
         self.on_complete = on_complete
         self.time = 0.0
+        self.scale_anim = None
+        self.alpha_anim = None
         self.anim_completion = None
         self.end_mode = end
         self.original_position = None
         self.current_position = None
         if self.end_mode == ShapeEditor.END_POSE:
             self.end_hold = HoldGesture(None, self.get_current_pos, self.end_gesture)
+            self.end_hold.set_enabled(False)
+            def enable_gesture(ignore):
+                self.end_hold.set_enabled(True)
+            kivyClock.schedule_once(enable_gesture, 1.0)
 
     def add_position(self, pos):
         """
@@ -342,6 +360,10 @@ class ShapeEditor(InstructionGroup):
         self.translate.xy = pos[:2] - self.original_position[:2]
         if len(pos) > 2:
             new_scale = 1 + (pos[2] - self.original_position[2])
+            if pos[2] > 0.8:
+                self.accepting_points = False
+                self.on_complete(self, True)
+                return
             self.scale.x = new_scale
             self.scale.y = new_scale
 
@@ -356,6 +378,18 @@ class ShapeEditor(InstructionGroup):
                 self.bg_anim = None
                 if self.anim_completion is not None:
                     self.anim_completion()
+
+        if self.scale_anim is not None:
+            new_scale = self.scale_anim.eval(self.time)
+            self.scale.x = new_scale
+            self.scale.y = new_scale
+            if not self.scale_anim.is_active(self.time):
+                self.scale_anim = None
+
+        if self.alpha_anim is not None:
+            self.shape.set_alpha(self.alpha_anim.eval(self.time))
+            if not self.alpha_anim.is_active(self.time):
+                self.alpha_anim = None
 
         self.time += dt
 
@@ -389,13 +423,20 @@ class ShapeEditor(InstructionGroup):
         self.scale.x = 1.0
         self.scale.y = 1.0
 
-        self.on_complete(self)
+        self.on_complete(self, False)
+        if self.end_mode == ShapeEditor.END_CLICK:
+            self.end_hold.set_enabled(False)
 
 
-    def hide_transition(self, callback):
+    def hide_transition(self, callback, remove_object=False):
         """
         Performs a hide animation, and calls the given callback function on completion.
+        If remove_object is True, animates the shape out of existence while
+        fading out.
         """
         self.time = 0.0
         self.bg_anim = KFAnim((0.0, self.bg_color.a), (1.0, 0.0))
+        if remove_object:
+            self.scale_anim = KFAnim((0.0, self.scale.x), (0.5, self.scale.x * 2.0))
+            self.alpha_anim = KFAnim((0.0, 1.0), (0.5, 0.0))
         self.anim_completion = callback

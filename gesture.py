@@ -32,6 +32,10 @@ class Gesture(object):
     def set_enabled(self, enabled):
         self.enabled = enabled
 
+    def is_recognizing(self):
+        """Returns whether the gesture is currently accepting a potential gesture."""
+        return False
+
 class HoldGesture(Gesture):
     """
     Recognizes a gesture in which the hand position remains in the same area for
@@ -49,6 +53,7 @@ class HoldGesture(Gesture):
         self.start_time = None
         self.original_pos = None
         self.hold_time = hold_time
+        self.recognizing = False
 
     def on_update(self):
         if not self.enabled: return
@@ -59,6 +64,7 @@ class HoldGesture(Gesture):
         if pos is None or (self.hit_test is not None and not self.hit_test(pos)):
             self.original_pos = None
             self.start_time = None
+            self.recognizing = False
             return
 
         if self.original_pos is None or self.start_time is None:
@@ -69,11 +75,14 @@ class HoldGesture(Gesture):
         # Check that position didn't move for self.hold_time
         delta = np.linalg.norm(self.original_pos - pos)
         if delta < 16.0:
+            self.recognizing = True
             if time.time() - self.start_time >= self.hold_time:
                 self.callback(self)
                 self.start_time = None
                 self.original_pos = None
+                self.recognizing = False
         else:
+            self.recognizing = False
             self.original_pos = None
             self.start_time = None
 
@@ -82,3 +91,6 @@ class HoldGesture(Gesture):
         if not enabled:
             self.original_pos = None
             self.start_time = None
+
+    def is_recognizing(self):
+        return self.recognizing

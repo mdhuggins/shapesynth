@@ -174,7 +174,7 @@ class MainWidget(BaseWidget) :
         scaled = scale_point(kinect_pt, kKinectRange)
         return np.concatenate([scaled[:2] * self.window_size + self.margin, scaled[2:]])
 
-    def is_in_front(self, point, threshold=0.2):
+    def is_in_front(self, point, threshold=0.3):
         """
         Returns True if the point is outside an ellipsoid that is at a z-value
         of `threshold` for most of the interactive space.
@@ -190,6 +190,9 @@ class MainWidget(BaseWidget) :
         """Called when a hold gesture is completed."""
 
         if gesture.identifier == "create":
+            if any(g for g in self.gestures if g.identifier != "create" and g.is_recognizing()):
+                print("Another gesture is recognizing")
+                return
             # Initialize the shape gesture using the same point source as this hold gesture gesture
             self.shape_creator = ShapeCreator((0.5, 0.7, 0.8), gesture.source, self.on_shape_creator_complete)
             self.interaction_anims.add(self.shape_creator)
@@ -237,21 +240,24 @@ class MainWidget(BaseWidget) :
         else:
             self.gestures.insert(0, HoldGesture(new_shape, self.get_mouse_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
 
-    def on_shape_editor_complete(self, editor):
+    def on_shape_editor_complete(self, editor, removed):
         """
         Called when the shape editor detects the user is finished.
         """
         def on_editor_completion():
             self.interaction_anims.remove(self.shape_editor)
             self.shape_editor = None
-        self.shape_editor.hide_transition(on_editor_completion)
-        editor.shape.update_sound()
-        self.canvas.add(editor.shape)
+        self.shape_editor.hide_transition(on_editor_completion, removed)
+        if removed:
+            self.shapes.remove(editor.shape)
+            editor.shape.composer.stop()
+        else:
+            editor.shape.update_sound()
+            self.canvas.add(editor.shape)
 
         # Reenable other gestures
         for gesture in self.gestures:
             gesture.set_enabled(True)
-
 
 # pass in which MainWidget to run as a command-line arg
 if __name__ == '__main__':
