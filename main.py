@@ -24,6 +24,7 @@ from synth.reverb import Reverb
 from shape import *
 from gesture import *
 from keyboard import *
+from color import *
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -45,8 +46,6 @@ class MainWidget(BaseWidget) :
     def __init__(self):
         super(MainWidget, self).__init__()
 
-        self.info = topleft_label()
-        self.add_widget(self.info)
         Window.bind(on_request_close=self.on_request_close)
 
         self.writer = AudioWriter('data') # for debugging audio output
@@ -80,11 +79,12 @@ class MainWidget(BaseWidget) :
         # Create cursors
         self.margin = np.array([Window.width * 0.05, Window.width * 0.05])
         self.window_size = [Window.width - 2 * self.margin[0], Window.height - 2 * self.margin[1]]
-        self.left_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5))
+        self.left_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5), border=False)
         self.canvas.add(self.left_hand)
-        self.right_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5))
+        self.right_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5), border=False)
         self.canvas.add(self.right_hand)
 
+        self.palette = ColorPalette()
         self.shapes = []
         self.shape_creator = None
         self.shape_editor = None
@@ -105,8 +105,6 @@ class MainWidget(BaseWidget) :
         return False
 
     def on_update(self) :
-        self.info.text = ''
-
         self.kinect.on_update()
         norm_right = self.get_right_pos(screen=False)
         norm_left = self.get_left_pos(screen=False)
@@ -208,7 +206,7 @@ class MainWidget(BaseWidget) :
 
         elif gesture.identifier in self.shapes:
             editing_shape = gesture.identifier
-            self.canvas.remove(editing_shape)
+            self.interaction_anims.remove(editing_shape)
             self.shape_editor = ShapeEditor((0.4, 0.7, 0.8), editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
             self.interaction_anims.add(self.shape_editor)
 
@@ -224,14 +222,14 @@ class MainWidget(BaseWidget) :
         new_points = [((points[i] - points[0]) * self.shape_scale + points[0], (points[i + 1] - points[1]) * self.shape_scale + points[1]) for i in range(0, len(points), 2)]
 
         # Create and add the shape
-        new_shape = Shape(new_points, (0.5, 0.7, 0.8), self.sched, self.mixer)
+        new_shape = Shape(new_points, self.palette, self.sched, self.mixer)
         self.shapes.append(new_shape)
 
         # Animate out shape creator
         def on_creator_completion():
             self.interaction_anims.remove(self.shape_creator)
             self.shape_creator = None
-            self.canvas.add(new_shape)
+            self.interaction_anims.add(new_shape)
         self.shape_creator.hide_transition([coord for point in new_points for coord in point], on_creator_completion)
 
         # Reenable other gestures
@@ -258,7 +256,7 @@ class MainWidget(BaseWidget) :
             editor.shape.composer.stop()
         else:
             editor.shape.update_sound()
-            self.canvas.add(editor.shape)
+            self.interaction_anims.add(editor.shape)
 
         # Reenable other gestures
         for gesture in self.gestures:

@@ -18,22 +18,24 @@ import matplotlib.pyplot as plt
 from composer import *
 from synth.shape_synth import *
 from gesture import HoldGesture
+from color import ColorPalette
 
 class Shape(InstructionGroup):
     """
     Represents a 2D shape on the canvas.
     """
 
-    def __init__(self, points, color, sched, mixer):
+    def __init__(self, points, palette, sched, mixer):
         """
         points - a list of points bounding the shape
-        color - a tuple (H, S, V) representing the shape's color
+        palette - a ColorPalette object that returns colors to use
         sched - a scheduler on which to build the composer
         mixer - the mixer to which to add notes
         """
         super(Shape, self).__init__()
         self.points = points
-        self.hsv = color
+        self.palette = palette
+        self.hsv = (0, 1, 1)
         self.fill_color = Color(hsv=self.hsv)
         self.fill_color.a = 0.5
         self.add(self.fill_color)
@@ -45,10 +47,14 @@ class Shape(InstructionGroup):
         self.curve = Line(points=[coord for point in self.points for coord in point], segments=20 * len(self.points), loop=True)
         self.curve.width = 3.0
         self.add(self.curve)
+        self.color_anim = None
+        self.time = 0.0
+        self.color_frozen = False
 
         self.make_shape_properties()
         self.make_synth()
         self.make_composer(sched, mixer)
+        self.update_color()
 
     def set_points(self, points):
         """Takes the given numpy nx2 array of points and sets the shape's points
@@ -159,16 +165,41 @@ class Shape(InstructionGroup):
         self.composer.update_interval = 4 if self.center[0] > 0.3 else 8
         self.composer.velocity_level = 0.5
         self.composer.velocity_variance = self.center[0] * (1 - self.center[0])
+        self.composer.update_callback = self.update_color
 
         self.composer.start()
 
     def on_note(self, pitch, velocity, dur):
         """Called when the ShapeSynth plays a note."""
-        self.fill_color.a = 0.8
-        def reset(ignore):
-            self.fill_color.a = 0.5
-        kivyClock.schedule_once(reset, dur / 2.0)
+        pass
+        # self.fill_color.a = 0.8
+        # def reset(ignore):
+        #     self.fill_color.a = 0.5
+        # kivyClock.schedule_once(reset, dur / 2.0)
 
+    def on_update(self, dt):
+        if self.color_anim is not None:
+            new_color = self.color_anim.eval(self.time)
+            self.fill_color.hsv = new_color
+            self.fill_color.a = 0.5
+            self.stroke_color.hsv = new_color
+            if not self.color_anim.is_active(self.time):
+                self.color_anim = None
+            self.time += dt
+
+    def set_color_frozen(self, flag):
+        """Controls whether the shape color is allowed to change."""
+        self.color_frozen = flag
+
+    def update_color(self):
+        """Called when the composer generates new notes."""
+        if self.color_frozen: return
+        if self.color_anim is not None: return
+
+        self.time = 0.0
+        new_hsv = self.palette.new_color(self.composer.pitch_level)
+        self.color_anim = KFAnim((0.0, *self.hsv), (1.0, *new_hsv))
+        self.hsv = new_hsv
 
 SHAPE_CLOSE_THRESHOLD = 20
 MAX_DISTANCE_THRESHOLD = 30

@@ -152,6 +152,7 @@ class Composer(object):
         self.queued_measures = [] # Measures to play in the future
         self.last_rhythm = None
         self.scheduled_to_beat = None
+        self.update_callback = None
 
     def start(self):
         if self.playing: return
@@ -191,6 +192,9 @@ class Composer(object):
             self.scheduled_to_beat = next_beat + min(current_tick, kTicksPerQuarter * self.update_interval)
             time = self.scheduled_to_beat - np.random.randint(kTicksPerQuarter, int(self.update_interval * 0.3 * kTicksPerQuarter))
             self.update_cmd = self.sched.post_at_tick(self._update, time)
+
+        if self.update_callback is not None:
+            self.update_callback()
 
     def update_composition(self, next_beat):
         """
