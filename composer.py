@@ -186,6 +186,7 @@ class Composer(object):
         self.playing = False
         self.measure_stack = [] # Will contain lists of commands
         self.queued_measures = [] # Measures to play in the future
+        self.prep_notes = {}
         self.last_rhythm = None
         self.scheduled_to_beat = None
         self.update_callback = None
@@ -221,6 +222,7 @@ class Composer(object):
             current_tick = 0
             for note_params in new_notes:
                 if note_params[0] is not None:
+                    self.sched.post_at_tick(self.prep_note, np.random.randint(tick + 2, next_beat + current_tick), note_params)
                     self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
                 current_tick += abs(note_params[2])
 
@@ -276,14 +278,34 @@ class Composer(object):
 
         return new_sequence
 
+    def prep_note(self, tick, note_params):
+        """
+        Called by the scheduler to create a note without adding it to the mixer yet.
+        """
+        if note_params in self.prep_notes:
+            note, count = self.prep_notes[note_params]
+            self.prep_notes[note_params] = (note, count + 1)
+            return
+
+        pitch, velocity, dur = note_params
+        dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
+        note_gen = self.note_factory(pitch, velocity, dur_sec)
+        self.prep_notes[note_params] = (note_gen, 1)
+
     def play_note(self, tick, note_params):
         """
         Called by the scheduler to create a note with the given parameters.
         """
-        pitch, velocity, dur = note_params
-        dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
-        note_gen = self.note_factory(pitch, velocity, dur_sec)
+        if note_params not in self.prep_notes:
+            print("Uh-oh - generating a note on the fly")
+            self.prep_note(tick, note_params)
+
+        note_gen, count = self.prep_notes[note_params]
         self.mixer.add(note_gen)
+        if count == 1:
+            del self.prep_notes[note_params]
+        else:
+            self.prep_notes[note_params] = (note_gen, count - 1)
 
     def generate_note_sequence(self, last_note=None, last_rhythm=None):
         """

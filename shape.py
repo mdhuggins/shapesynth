@@ -36,10 +36,10 @@ class Shape(InstructionGroup):
         self.points = points
         self.palette = palette
         self.hsv = (0, 1, 1)
+        self.shadow_index = len(self.children)
         self.fill_color = Color(hsv=self.hsv)
         self.fill_color.a = 0.5
         self.add(self.fill_color)
-        self.shadow_index = len(self.children)
         self.mesh = Mesh(mode='triangles')
         self.update_mesh()
         self.add(self.mesh)
@@ -103,10 +103,11 @@ class Shape(InstructionGroup):
         """
         Refreshes the sonic properties of the shape.
         """
+        was_on = self.composer.playing
         self.composer.stop()
         self.make_shape_properties()
         self.make_synth()
-        self.make_composer(self.composer.sched, self.composer.mixer)
+        self.make_composer(self.composer.sched, self.composer.mixer, was_on)
 
     def make_shape_properties(self):
         """
@@ -141,9 +142,9 @@ class Shape(InstructionGroup):
 
 
         # r /= len(self.points)
-        print(r)
 
-        self.roughness = r/10
+        self.roughness = np.clip(r / 10.0, 0.0, 1.0)
+        print(self.roughness)
 
     def make_synth(self):
         """
@@ -157,7 +158,7 @@ class Shape(InstructionGroup):
         self.synth = ShapeSynth(self.center[0], self.center[1], gain, self.roughness)
         self.synth.on_note = self.on_note
 
-    def make_composer(self, sched, mixer):
+    def make_composer(self, sched, mixer, start=True):
         """
         Builds this shape's Composer using its location and properties of its
         vertices.
@@ -165,8 +166,8 @@ class Shape(InstructionGroup):
         self.composer = Composer(sched, mixer, self.synth.make_note)
         self.composer.pitch_level = np.sqrt(self.center[0] * 0.7)
         self.composer.pitch_variance = (self.center[0] / 2.0) ** 2
-        self.composer.complexity = 1 / (1 + np.exp(-(self.center[0] - 0.6) / 6.0))
-        self.composer.harmonic_obedience = np.sqrt(1.0 - self.center[0])
+        self.composer.complexity = self.roughness
+        self.composer.harmonic_obedience = np.sqrt(1.0 - self.roughness)
         self.composer.bass_preference = 1 - self.center[0]
         self.composer.arpeggio_preference = 2.0 * self.center[0] * (1 - self.center[0])
         self.composer.update_interval = 4 if self.center[0] > 0.3 else 8
@@ -174,7 +175,8 @@ class Shape(InstructionGroup):
         self.composer.velocity_variance = self.center[0] * (1 - self.center[0])
         self.composer.update_callback = self.update_color
 
-        self.composer.start()
+        if start:
+            self.composer.start()
 
     def on_note(self, pitch, velocity, dur):
         """Called when the ShapeSynth plays a note."""
