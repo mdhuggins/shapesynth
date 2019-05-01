@@ -55,7 +55,7 @@ class Conductor(object):
         elif change_flag < 0.6:
             Conductor.obedience_preference = np.clip(Conductor.obedience_preference - 0.1, 0.0, 1.0)
 
-        next_beat = quantize_tick_up(self.scheduler.get_tick(), kTicksPerQuarter)
+        next_beat = quantize_tick_up(self.scheduler.get_tick() + 1, kTicksPerQuarter * 8)
         self.update_cmd = self.scheduler.post_at_tick(Conductor.update, next_beat)
 
 RHYTHMS = [
@@ -92,6 +92,11 @@ RHYTHMS = [
     (1, 0.25, 0.4, 0.4, [120, 120, 180, 60, 120]),
     (1, 0.5, 0.4, 0.5, [180, 60, 120, 180, 60, 120]),
     (1, 0.5, 0.4, 0.5, [180, 180, 180, 180, 60, -60]),
+
+    (1, 0.1, 0.8, 0.7, [30, 30, 30, 30, 30, 30, 30, 30, 60, 60, 60, 60]),
+    (1, 0.1, 0.8, 0.8, [60, 60, 60, 60, 30, 30, 30, 30, 30, 30, 30, 30]),
+    (1, 0.1, 0.8, 0.9, [30, 30, 30, 30, 60, 30, 30, 30, 30, 30, 30, 60, 30, 30]),
+    (1, 0.1, 0.8, 0.8, [60, 30, 30, 30, 30, 60, 90, 30, 60, 60]),
     #(1, 0.5, 0.4, 0.5, [120, 120, 160, 40, 40, 40, 40]),
 
     (1, 0.25, 0.4, 0.7, [120, 40, 40, 40, 120, 120]),
@@ -105,7 +110,7 @@ class Composer(object):
     Generates music for a single instrument.
     """
 
-    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, velocity_level=0.0, velocity_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, update_interval=4):
+    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, velocity_level=0.0, velocity_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, arpeggio_preference=0.5, update_interval=4):
         """
         Initializes a Composer that uses the given note factory to create note
         generators.
@@ -140,20 +145,24 @@ class Composer(object):
         self.complexity = complexity
         self.harmonic_obedience = harmonic_obedience
         self.bass_preference = bass_preference
+        self.arpeggio_preference = arpeggio_preference
         self.update_interval = update_interval
         self.playing = False
-        self.queued_notes = [] # Will contain lists of commands
+        self.measure_stack = [] # Will contain lists of commands
+        self.queued_measures = [] # Measures to play in the future
         self.last_rhythm = None
+        self.scheduled_to_beat = None
 
     def start(self):
         if self.playing: return
         self.playing = True
 
-        self.update_cmd = self.sched.post_at_tick(self._update, self.sched.get_tick())
+        self._update(self.sched.get_tick(), None)
 
     def stop(self):
         if not self.playing: return
         self.playing = False
+        self.scheduled_to_beat = None
         self.sched.remove(self.update_cmd)
 
     def toggle(self):
@@ -161,22 +170,27 @@ class Composer(object):
         else: self.start()
 
     def clear_notes(self):
-        self.queued_notes = []
+        self.measure_stack = []
+        self.queued_measures = []
 
     def _update(self, tick, ignore):
         """Helper method called periodically by scheduler to start asynchronous processing."""
-        next_beat = quantize_tick_up(tick + 1, self.update_interval * kTicksPerQuarter)
-        next_sequence = self.update_composition(next_beat)
-        if next_sequence is not None:
-            beat, new_notes = next_sequence
+        if self.scheduled_to_beat is not None and tick < self.scheduled_to_beat - self.update_interval * kTicksPerQuarter:
+            return
+
+        next_beat = quantize_tick_up(tick + kTicksPerQuarter / 2, self.update_interval * kTicksPerQuarter)
+        new_notes = self.update_composition(next_beat)
+        if new_notes is not None:
             current_tick = 0
             for note_params in new_notes:
                 if note_params[0] is not None:
-                    self.sched.post_at_tick(self.play_note, beat + current_tick, note_params)
+                    self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
                 current_tick += note_params[2]
 
             # Schedule the next update
-            self.update_cmd = self.sched.post_at_tick(self._update, beat + current_tick - np.random.randint(50, int(self.update_interval * 0.7 * kTicksPerQuarter)))
+            self.scheduled_to_beat = next_beat + min(current_tick, kTicksPerQuarter * self.update_interval)
+            time = self.scheduled_to_beat - np.random.randint(kTicksPerQuarter, int(self.update_interval * 0.3 * kTicksPerQuarter))
+            self.update_cmd = self.sched.post_at_tick(self._update, time)
 
     def update_composition(self, next_beat):
         """
@@ -184,23 +198,28 @@ class Composer(object):
         `next_beat`. Returns the number of ticks that this segment of composition
         will last.
         """
-        new_sequences = []
+        new_sequence = None
+
+        # Play the next queued sequence if available
+        if len(self.queued_measures) > 0:
+            new_sequence = self.queued_measures.pop(0)
 
         # Possibly pop a random amount of past sequences off the stack
-        if len(self.queued_notes) > 0:
-            pop_level = 2 ** int(np.log2(len(self.queued_notes)))
-            while pop_level >= 1 and len(new_sequences) == 0:
+        if new_sequence is None and len(self.measure_stack) > 0:
+            pop_level = 2 ** int(np.log2(len(self.measure_stack)))
+            while pop_level >= 1 and new_sequence is None:
                 if np.random.random() < 0.5 * (1 - self.complexity):
-                    new_sequences = self.queued_notes[-pop_level:]
-                    del self.queued_notes[-pop_level:]
+                    self.queued_measures = self.measure_stack[-pop_level:]
+                    new_sequence = self.queued_measures.pop(0)
+                    del self.measure_stack[-pop_level:]
                     break
                 pop_level = pop_level // 2
 
         # Generate a new sequence
-        if len(new_sequences) == 0:
+        if new_sequence is None:
             # Get the last note if available
-            if len(self.queued_notes) > 0:
-                current_measure = self.queued_notes[-1]
+            if len(self.measure_stack) > 0:
+                current_measure = self.measure_stack[-1]
                 if len(current_measure) > 0:
                     last_note = current_measure[-1]
             else:
@@ -209,14 +228,13 @@ class Composer(object):
             if np.random.random() < self.pitch_variance:
                 last_note = None
 
-            rhythm, new_notes = self.generate_note_sequence(last_note, self.last_rhythm)
+            rhythm, new_sequence = self.generate_note_sequence(last_note, self.last_rhythm)
             self.last_rhythm = rhythm
-            new_sequences = [new_notes]
 
-        self.queued_notes += new_sequences
+        if new_sequence is not None:
+            self.measure_stack.append(new_sequence)
 
-        new_notes = [note for sequence in new_sequences for note in sequence]
-        return next_beat, new_notes
+        return new_sequence
 
     def play_note(self, tick, note_params):
         """
@@ -237,14 +255,17 @@ class Composer(object):
         index, rhythm = self.pick_rhythm(last_rhythm=last_rhythm)
         print(rhythm)
         current_tick = 0
-        for duration in rhythm:
-            if duration < 0:
-                new_notes.append((None, None, -duration))
-                current_tick += -duration
-            else:
-                last_note = self.pick_note(current_tick, duration, last_note=last_note)
-                new_notes.append(last_note)
-                current_tick += duration
+        if np.random.random() < self.arpeggio_preference:
+            new_notes = self.make_arpeggio(rhythm, last_note=last_note)
+        else:
+            for duration in rhythm:
+                if duration < 0:
+                    new_notes.append((None, None, -duration))
+                    current_tick += -duration
+                else:
+                    last_note = self.pick_note(current_tick, duration, last_note=last_note)
+                    new_notes.append(last_note)
+                    current_tick += duration
         return index, new_notes
 
     def pick_rhythm(self, last_rhythm=None):
@@ -345,6 +366,64 @@ class Composer(object):
         velocity = np.clip(velocity, 0.1, 1.0)
 
         return pitch, velocity, duration
+
+    def make_arpeggio(self, durations, last_note=None):
+        """
+        Builds an arpeggio on the notes in the conductor's harmony, for a rhythm
+        with the given durations. Returns a list of [(pitch, velocity, duration)].
+        """
+        notes = []
+        if len(durations) == 0: return notes
+
+        if last_note is not None and last_note[0] is not None:
+            # Find closest note in the harmony to last_note
+            last_pitch = last_note[0]
+            last_pitch_class = last_pitch % 12
+            closest_pitch = min(Conductor.harmony, key=lambda p: min(abs((p - last_pitch_class) % 12), abs((last_pitch_class - p) % 12)))
+
+        # If closest_pitch is the same as last pitch, don't use it automatically
+        if last_note is None or last_note[0] is None or last_pitch_class == closest_pitch:
+            closest_pitch = np.random.choice(Conductor.harmony)
+
+        # Pick octave
+        if last_note is not None and last_note[0] is not None:
+            up_pitch = last_pitch + (closest_pitch - last_pitch_class) % 12
+            down_pitch = last_pitch - (last_pitch_class - closest_pitch) % 12
+            pitch = min([up_pitch, down_pitch], key=lambda p: abs(p - last_pitch))
+        else:
+            pitch = closest_pitch + 12 * int(self.pitch_level * 9)
+
+        velocity = last_note[1] if last_note is not None and last_note[1] is not None else np.clip(np.random.normal(self.velocity_level, self.velocity_variance), 0.1, 1.0)
+        notes.append((pitch, velocity, durations[0]))
+
+        # Pick the remainder of the notes by steps in the harmony
+        pitch_index = Conductor.harmony.index(int(closest_pitch))
+        while len(notes) < len(durations):
+            last_pitch_class = Conductor.harmony[pitch_index]
+            if np.random.random() < 0.5: # Going up
+                probs = np.array([0.01, 0.01, 0.03, 0.8, 0.15])
+            else:                        # Going down
+                probs = np.array([0.15, 0.8, 0.03, 0.01, 0.01])
+            pitch_index = int(pitch_index + np.random.choice(np.arange(-2, 3), p=probs)) % len(Conductor.harmony)
+            new_pitch_class = Conductor.harmony[pitch_index]
+
+            # Choose octave
+            up_pitch = notes[-1][0] + (new_pitch_class - last_pitch_class) % 12
+            down_pitch = notes[-1][0] - (last_pitch_class - new_pitch_class) % 12
+            pitch = min([up_pitch, down_pitch], key=lambda p: abs(p - notes[-1][0]))
+            while pitch - notes[-1][0] > 12:
+                pitch -= 12
+            while pitch - notes[-1][0] < -12:
+                pitch += 12
+
+            # Choose velocity
+            mean = (pitch - notes[-1][0]) / 20.0
+            velocity = np.clip(notes[-1][1] + np.random.normal(mean, self.velocity_variance ** 2), 0.1, 1.0)
+
+            notes.append((pitch, velocity, durations[len(notes)]))
+
+        return notes
+
 
 if __name__ == '__main__':
     composer = Composer(None, None, None, 0.5, 0.001, 0.5, 0.1, 4)

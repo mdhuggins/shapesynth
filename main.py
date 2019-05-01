@@ -53,7 +53,7 @@ class MainWidget(BaseWidget) :
         self.audio = Audio(1, self.writer.add_audio)
         self.mixer = Mixer()
         self.mixer.set_gain(0.5)
-        self.tempo_map  = SimpleTempoMap(120)
+        self.tempo_map  = SimpleTempoMap(92)
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
 
@@ -72,8 +72,8 @@ class MainWidget(BaseWidget) :
 
         # Set up hold gestures, which trigger shape manipulation
         if USE_KINECT:
-            self.gestures = [HoldGesture("create_left", self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x, 0.05)),
-                             HoldGesture("create_right", self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x, 0.05))]
+            self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front),
+                             HoldGesture("create", self.get_right_pos, self.on_hold_gesture, self.is_in_front)]
         else:
             self.gestures = [HoldGesture("create", self.get_mouse_pos, self.on_hold_gesture, None)]
 
@@ -87,6 +87,7 @@ class MainWidget(BaseWidget) :
 
         self.shapes = []
         self.shape_creator = None
+        self.shape_editor = None
 
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
@@ -178,7 +179,7 @@ class MainWidget(BaseWidget) :
         scaled = scale_point(kinect_pt, kKinectRange)
         return np.concatenate([scaled[:2] * self.window_size + self.margin, scaled[2:]])
 
-    def is_in_front(self, point, threshold):
+    def is_in_front(self, point, threshold=0.2):
         """
         Returns True if the point is outside an ellipsoid that is at a z-value
         of `threshold` for most of the interactive space.
@@ -193,13 +194,24 @@ class MainWidget(BaseWidget) :
     def on_hold_gesture(self, gesture):
         """Called when a hold gesture is completed."""
 
-        # Initialize the shape gesture using the same point source as this hold gesture gesture
-        self.shape_creator = ShapeCreator((0.5, 0.7, 0.8), gesture.source, self.on_shape_creator_complete)
-        self.interaction_anims.add(self.shape_creator)
+        if gesture.identifier == "create":
+            # Initialize the shape gesture using the same point source as this hold gesture gesture
+            self.shape_creator = ShapeCreator((0.5, 0.7, 0.8), gesture.source, self.on_shape_creator_complete)
+            self.interaction_anims.add(self.shape_creator)
 
-        # Disable other gestures while creating a shape
-        for gest in self.gestures:
-            gest.set_enabled(False)
+            # Disable other gestures while creating a shape
+            for gest in self.gestures:
+                gest.set_enabled(False)
+
+        elif gesture.identifier in self.shapes:
+            editing_shape = gesture.identifier
+            self.canvas.remove(editing_shape)
+            self.shape_editor = ShapeEditor((0.4, 0.7, 0.8), editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
+            self.interaction_anims.add(self.shape_editor)
+
+            # Disable other gestures while editing a shape
+            for gest in self.gestures:
+                gest.set_enabled(False)
 
     def on_shape_creator_complete(self, points):
         """
@@ -222,6 +234,29 @@ class MainWidget(BaseWidget) :
         # Reenable other gestures
         for gesture in self.gestures:
             gesture.set_enabled(True)
+
+        # Add hold gestures for this shape
+        if USE_KINECT:
+            self.gestures.insert(0, HoldGesture(new_shape, self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
+            self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
+        else:
+            self.gestures.insert(0, HoldGesture(new_shape, self.get_mouse_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
+
+    def on_shape_editor_complete(self, editor):
+        """
+        Called when the shape editor detects the user is finished.
+        """
+        def on_editor_completion():
+            self.interaction_anims.remove(self.shape_editor)
+            self.shape_editor = None
+        self.shape_editor.hide_transition(on_editor_completion)
+        editor.shape.update_sound()
+        self.canvas.add(editor.shape)
+
+        # Reenable other gestures
+        for gesture in self.gestures:
+            gesture.set_enabled(True)
+
 
 # pass in which MainWidget to run as a command-line arg
 if __name__ == '__main__':
