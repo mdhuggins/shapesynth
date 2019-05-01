@@ -401,6 +401,7 @@ class ShapeEditor(InstructionGroup):
         self.end_mode = end
         self.original_position = None
         self.current_position = None
+        self.last_position = None
         if self.end_mode == ShapeEditor.END_POSE:
             self.end_hold = HoldGesture(None, self.get_current_pos, self.end_gesture)
             self.end_hold.set_enabled(False)
@@ -412,6 +413,7 @@ class ShapeEditor(InstructionGroup):
         """
         Updates the shape using the given hand position (in 3D if available).
         """
+        self.last_position = self.current_position
         self.current_position = pos
         if self.original_position is None:
             self.original_position = pos
@@ -420,7 +422,7 @@ class ShapeEditor(InstructionGroup):
         self.translate.xy = pos[:2] - self.original_position[:2]
         if len(pos) > 2:
             new_scale = 1 + (pos[2] - self.original_position[2])
-            if pos[2] > 0.8:
+            if pos[2] > 0.8 and self.last_position is not None and (pos[2] - self.last_position[2]) > 0.2:
                 self.accepting_points = False
                 self.on_complete(self, True)
                 return
@@ -461,6 +463,7 @@ class ShapeEditor(InstructionGroup):
             new_pos = self.source()
             if self.end_mode == ShapeEditor.END_CLICK and new_pos is None:
                 self.end_gesture(None)
+                return
 
             # Only accept every third point (since data can be noisy)
             self.gesture_pos_idx = (self.gesture_pos_idx + 1) % 3
@@ -472,6 +475,8 @@ class ShapeEditor(InstructionGroup):
         Determines the final set of points to update the shape, and calls the
         on_complete handler.
         """
+        if not self.accepting_points: return
+
         self.accepting_points = False
 
         # Update the shape
@@ -483,9 +488,9 @@ class ShapeEditor(InstructionGroup):
         self.scale.x = 1.0
         self.scale.y = 1.0
 
-        self.on_complete(self, False)
         if self.end_mode == ShapeEditor.END_POSE:
             self.end_hold.set_enabled(False)
+        self.on_complete(self, False)
 
 
     def hide_transition(self, callback, remove_object=False):

@@ -113,6 +113,9 @@ class MainWidget(BaseWidget) :
         self.left_hand.set_pos(norm_left)
         self.right_hand.set_pos(norm_right)
 
+        if USE_KINECT and not self.is_tracking():
+            self.label.text = ''
+
         self.audio.on_update()
 
         for gesture in self.gestures:
@@ -120,7 +123,12 @@ class MainWidget(BaseWidget) :
 
         self.interaction_anims.on_update()
         if len(self.label.text) == 0:
-            self.label.text = 'harmony: ' + Conductor.harmony_string()
+            if USE_KINECT and not self.is_tracking():
+                self.label.text = 'Hold your arms up to begin.'
+            elif len(self.shapes) == 0:
+                self.label.text = 'Extend your hand to start drawing a shape.'
+            else:
+                self.label.text = 'harmony: ' + Conductor.harmony_string()
 
     # Change harmony with keystrokes
 
@@ -171,6 +179,10 @@ class MainWidget(BaseWidget) :
         return self.kinect_to_screen(pt) if screen else scale_point(pt, kKinectRange)
     def get_mouse_pos(self):
         return self.mouse_pos
+
+    def is_tracking(self):
+        """Returns whether or not the Kinect is currently tracking a user."""
+        return sum(self.kinect.get_joint(Kinect.kLeftHand)) != 0
 
     def kinect_to_screen(self, kinect_pt):
         """

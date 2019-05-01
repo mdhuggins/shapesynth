@@ -292,7 +292,6 @@ class Composer(object):
 
         new_notes = []
         index, rhythm = self.pick_rhythm(last_rhythm=last_rhythm)
-        print(rhythm)
         current_tick = 0
         if np.random.random() < self.arpeggio_preference:
             new_notes = self.make_arpeggio(rhythm, last_note=last_note)
