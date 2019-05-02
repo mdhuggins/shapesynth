@@ -198,11 +198,14 @@ class Sampler(object):
 
         # self.cache[pitch] = gen_spectra  #frames
 
-        return BufferedSpectraGenerator(self.gain * gain, gen_spectra, self.hop_size, env)
+        hash = (self.duration, self.coords, pitch)
 
+        return BufferedSpectraGenerator(self.gain * gain, gen_spectra, self.hop_size, env, hash)
+
+waveform_cache = {}
 
 class BufferedSpectraGenerator(object):
-    def __init__(self, gain, spectra, hop_size, env):
+    def __init__(self, gain, spectra, hop_size, env, hash):
         self.gain = gain
         self.spectra = spectra
         self.hop_size = hop_size
@@ -227,6 +230,8 @@ class BufferedSpectraGenerator(object):
         self.hops = 0
         self.playing = True
 
+        self.hash = hash
+
         self.N = (self.spectra.shape[0] - 1) * 2
         self.x = np.zeros((hop_size * (self.spectra.shape[1] - 1) + self.N,))
 
@@ -240,11 +245,21 @@ class BufferedSpectraGenerator(object):
         W = np.where(np.abs(W) < 0.001, 0.001, W)
         self.W = W
 
-        self.istft_step_fn(5)
+        if self.hash in waveform_cache:
+            print("cached!")
+            self.frames = waveform_cache[self.hash]
+            self.hops = self.spectra.shape[1]+1
+
+        self.istft_step_fn(10)
 
         self.t = None
 
     def istft_step_fn(self, hops=10):
+        if self.hops > self.spectra.shape[1]:
+            if self.hash not in waveform_cache:
+                print("added to cache")
+                waveform_cache[self.hash] = self.frames
+            return
         for col in range(self.hops, min(self.spectra.shape[1], self.hops+hops)):
             x_h = np.fft.irfft(self.spectra[:, col])
             apply_in_window(self.x, x_h, col * self.hop_size, True)
@@ -298,7 +313,12 @@ class BufferedSpectraGenerator(object):
             output = np.append(output, np.zeros(padding))
 
         # return
-        return output * self.gain, self.frame <= len(self.env)
+        contin = self.frame <= len(self.env)
+        if not contin:
+            if self.hash not in waveform_cache:
+                print("added to cache")
+                waveform_cache[self.hash] = self.frames
+        return output * self.gain, contin
 
 class SpectraGenerator(object):
     def __init__(self, gain, spectra, hop_size, env):
