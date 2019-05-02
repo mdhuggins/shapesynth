@@ -236,30 +236,36 @@ class MainWidget(BaseWidget) :
         """
         Called when the shape creator detects the shape is closed.
         """
-        # Translate and scale the points around the first point
-        new_points = [((points[i] - points[0]) * self.shape_scale + points[0], (points[i + 1] - points[1]) * self.shape_scale + points[1]) for i in range(0, len(points), 2)]
+        if len(points) > 0:
+            # Translate and scale the points around the first point
+            new_points = [((points[i] - points[0]) * self.shape_scale + points[0], (points[i + 1] - points[1]) * self.shape_scale + points[1]) for i in range(0, len(points), 2)]
 
-        # Create and add the shape
-        new_shape = Shape(new_points, self.palette, self.sched, self.mixer)
-        self.shapes.append(new_shape)
+            # Create and add the shape
+            new_shape = Shape(new_points, self.palette, self.sched, self.mixer)
+            self.shapes.append(new_shape)
 
-        # Animate out shape creator
-        def on_creator_completion():
-            self.interaction_anims.remove(self.shape_creator)
-            self.shape_creator = None
-            self.interaction_anims.add(new_shape)
-        self.shape_creator.hide_transition([coord for point in new_points for coord in point], on_creator_completion)
+            # Animate out shape creator
+            def on_creator_completion():
+                self.interaction_anims.remove(self.shape_creator)
+                self.shape_creator = None
+                self.interaction_anims.add(new_shape)
+            self.shape_creator.hide_transition([coord for point in new_points for coord in point], on_creator_completion)
+
+            # Add hold gestures for this shape
+            if USE_KINECT:
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
+            else:
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_mouse_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
+        else:
+            def on_creator_completion():
+                self.interaction_anims.remove(self.shape_creator)
+                self.shape_creator = None
+            self.shape_creator.hide_transition([], on_creator_completion)
 
         # Reenable other gestures
         for gesture in self.gestures:
             gesture.set_enabled(True)
-
-        # Add hold gestures for this shape
-        if USE_KINECT:
-            self.gestures.insert(0, HoldGesture(new_shape, self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
-            self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
-        else:
-            self.gestures.insert(0, HoldGesture(new_shape, self.get_mouse_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
 
         self.label.text = ''
 

@@ -453,6 +453,10 @@ class Composer(object):
         else:
             pitch = closest_pitch + 12 * int(self.pitch_level * 8)
 
+        # Don't let pitch get too high
+        while pitch > MAX_PITCH:
+            pitch -= 12
+
         velocity = last_note[1] if last_note is not None and last_note[1] is not None else np.clip(np.random.normal(self.velocity_level, self.velocity_variance), 0.1, 1.0)
         notes.append((pitch, velocity, durations[0]))
 
@@ -475,6 +479,10 @@ class Composer(object):
                 pitch -= 12
             while pitch - notes[-1][0] < -12:
                 pitch += 12
+
+            # Don't let pitch get too high
+            while pitch > MAX_PITCH:
+                pitch -= 12
 
             # Choose velocity
             mean = (pitch - notes[-1][0]) / 20.0

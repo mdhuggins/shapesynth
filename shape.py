@@ -5,7 +5,8 @@ from common.mixer import *
 from common.synth import *
 from common.clock import *
 
-from kivy.graphics import Color, Line, Mesh, Translate, Scale
+from kivy.core.image import Image
+from kivy.graphics import Color, Line, Mesh, Translate, Scale, BindTexture, Rotate
 from kivy.graphics.instructions import InstructionGroup
 from kivy.clock import Clock as kivyClock
 
@@ -37,6 +38,22 @@ class Shape(InstructionGroup):
         self.palette = palette
         self.hsv = (0, 1, 1)
         self.shadow_index = len(self.children)
+        self.color_frozen = False
+        self.color_anim = None
+        self.time = 0.0
+
+        self.make_shape_properties()
+
+        self.rotation = Rotate(0.0)
+        self.rotation_rate = np.random.uniform(-15.0, 15.0)
+        self.add(PushMatrix())
+        self.translate = Translate(*(self.center * np.array([Window.width, Window.height])))
+        self.add(self.translate)
+        self.add(self.rotation)
+        self.scale = Scale(1.0, 1.0)
+        self.add(self.scale)
+        self.back_translate = Translate(*(-self.center * np.array([Window.width, Window.height])))
+        self.add(self.back_translate)
         self.fill_color = Color(hsv=self.hsv)
         self.fill_color.a = 0.5
         self.add(self.fill_color)
@@ -48,17 +65,15 @@ class Shape(InstructionGroup):
         self.curve = Line(points=[coord for point in self.points for coord in point], segments=20 * len(self.points), loop=True)
         self.curve.width = 3.0
         self.add(self.curve)
-        self.color_anim = None
-        self.time = 0.0
-        self.color_frozen = False
+        self.add(PopMatrix())
 
-        self.make_shape_properties()
         self.make_synth()
         self.make_composer(sched, mixer)
+
         self.colors = [self.fill_color, self.stroke_color]
         self.shadow_anims = {}
         self.shadow_reenable_time = 0
-        self.update_color()
+        self.update_color(animated=False)
 
     def set_points(self, points):
         """Takes the given numpy nx2 array of points and sets the shape's points
@@ -67,9 +82,11 @@ class Shape(InstructionGroup):
         self.curve.points = [coord for point in self.points for coord in point]
         self.update_mesh()
         self.make_shape_properties()
+        self.translate.xy = (self.center * np.array([Window.width, Window.height]))
+        self.back_translate.xy = (-self.center * np.array([Window.width, Window.height]))
 
         for (shadow, color) in self.shadow_anims:
-            shadow.cpos = self.center * np.array([Window.width, Window.height])
+            shadow.pos = self.center * np.array([Window.width, Window.height]) - np.array(shadow.size) / 2.0
 
     def set_alpha(self, alpha):
         self.fill_color.a = alpha / 2.0
@@ -184,15 +201,18 @@ class Shape(InstructionGroup):
         if self.time < self.shadow_reenable_time: return
 
         center = ((self.min_x + self.max_x) / 2.0, (self.min_y + self.max_y) / 2.0)
-        dim = max(self.max_x - self.min_x, self.max_y - self.min_y) * 1.2
-        new_circle = CEllipse(cpos=center, csize=(dim, dim))
+        dim = max(self.max_x - self.min_x, self.max_y - self.min_y) * 2.5
+
+        new_circle = Rectangle(pos=(center[0] - dim / 2, center[1] - dim / 2), size=(dim, dim))
+        #new_circle = CEllipse(cpos=center, csize=(dim, dim), texture=tex)
         color = Color(hsv=self.fill_color.hsv)
-        color.a = 0.1
+        color.a = 0.3
         self.colors.append(color)
         duration = 4.0
         self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 10.0)), KFAnim((0.0, 0.3), (duration, 0.0)))
         self.insert(self.shadow_index, new_circle)
         self.insert(self.shadow_index, color)
+        self.insert(self.shadow_index, BindTexture(source='res/blur_circle.png'))
         self.shadow_reenable_time = self.time + 1.0
 
     def on_update(self, dt):
@@ -209,7 +229,8 @@ class Shape(InstructionGroup):
         kill_set = set()
         for (circle, color), (start_time, size_anim, alpha_anim) in self.shadow_anims.items():
             new_dim = size_anim.eval(self.time - start_time)
-            circle.csize = (new_dim, new_dim)
+            circle.pos = (circle.pos[0] + circle.size[0] / 2.0 - new_dim / 2.0, circle.pos[1] + circle.size[1] / 2.0 - new_dim / 2.0)
+            circle.size = (new_dim, new_dim)
             color.a = alpha_anim.eval(self.time - start_time)
             if not alpha_anim.is_active(self.time - start_time):
                 kill_set.add((circle, color))
@@ -217,23 +238,29 @@ class Shape(InstructionGroup):
                 self.remove(color)
                 self.colors.remove(color)
         self.shadow_anims = {k: v for k, v in self.shadow_anims.items() if k not in kill_set}
+
+        self.rotation.angle += dt * self.rotation_rate * len(self.shadow_anims)
+        if self.composer.playing:
+            new_scale = np.sin(self.time * np.pi / 2.0) * 0.15 + 1.0
+            self.scale.x = new_scale
+            self.scale.y = new_scale
         self.time += dt
 
     def set_color_frozen(self, flag):
         """Controls whether the shape color is allowed to change."""
         self.color_frozen = flag
 
-    def update_color(self):
+    def update_color(self, animated=True):
         """Called when the composer generates new notes."""
         if self.color_frozen: return
         if self.color_anim is not None: return
 
         new_hsv = self.palette.new_color(self.composer.pitch_level)
-        self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0, *new_hsv)))
+        self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0 if animated else 0.0, *new_hsv)))
         self.hsv = new_hsv
 
-SHAPE_CLOSE_THRESHOLD = 20
-MAX_DISTANCE_THRESHOLD = 30
+SHAPE_CLOSE_THRESHOLD = 40
+MAX_DISTANCE_THRESHOLD = 80
 
 def spring_timing_function(duration):
     times = np.array([0.0, 0.7, 0.85, 1.0]) * duration
@@ -257,6 +284,7 @@ class ShapeCreator(InstructionGroup):
         self.bg_color = Color(hsv=self.hsv)
         self.bg_color.a = 0.0
         self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.3))
+        self.shape_alpha_anim = None
         self.add(self.bg_color)
         self.add(Rectangle(pos=(0,0), size=(Window.width, Window.height)))
 
@@ -296,6 +324,9 @@ class ShapeCreator(InstructionGroup):
                 self.accepting_points = False
                 self.smooth_shape()
                 self.on_complete(self.points)
+            elif dist < SHAPE_CLOSE_THRESHOLD and self.max_distance <= MAX_DISTANCE_THRESHOLD and len(self.points) > 15:
+                self.accepting_points = False
+                self.on_complete([])
             elif dist > self.max_distance:
                 self.max_distance = dist
 
@@ -332,11 +363,22 @@ class ShapeCreator(InstructionGroup):
                 self.shape_timing = None
             else:
                 self.line.points = (old * (1 - t) + new * t).tolist()
+
+        if self.shape_alpha_anim is not None:
+            self.color.a = self.shape_alpha_anim.eval(self.time)
+            if not self.shape_alpha_anim.is_active(self.time):
+                self.shape_alpha_anim = None
+
         self.time += dt
 
         # Handle new points
         if self.accepting_points:
             new_pos = self.source()
+            if (len(new_pos) > 2 and new_pos[2] > 0.7) or len(self.points) > 800:
+                # The user stopped drawing - cancel
+                self.accepting_points = False
+                self.on_complete([])
+                return
             # Only accept every third point (since data can be noisy)
             self.gesture_pos_idx = (self.gesture_pos_idx + 1) % 3
             if self.gesture_pos_idx == 0 and new_pos is not None:
@@ -349,8 +391,11 @@ class ShapeCreator(InstructionGroup):
         """
         self.time = 0.0
         self.bg_anim = KFAnim((0.0, self.bg_color.a), (1.0, 0.0))
-        self.shape_anim_points = (np.array(self.points), np.array(final_points))
-        self.shape_timing = spring_timing_function(1.0)
+        if len(final_points) > 0:
+            self.shape_anim_points = (np.array(self.points), np.array(final_points))
+            self.shape_timing = spring_timing_function(1.0)
+        else:
+            self.shape_alpha_anim = KFAnim((0.0, 1.0), (1.0, 0.0))
         self.anim_completion = callback
 
 class ShapeEditor(InstructionGroup):
