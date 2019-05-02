@@ -1,5 +1,6 @@
 import numpy as np
 from common.clock import *
+from synth.sampler import SamplerDaemon
 
 class Conductor(object):
     """
@@ -222,7 +223,7 @@ class Composer(object):
             current_tick = 0
             for note_params in new_notes:
                 if note_params[0] is not None:
-                    self.sched.post_at_tick(self.prep_note, np.random.randint(tick + 2, next_beat + current_tick), note_params)
+                    self.sched.post_at_tick(self.prep_note, tick + 2 + np.random.randint(0, (next_beat + current_tick - tick) // 2), note_params)
                     self.sched.post_at_tick(self.play_note, next_beat + current_tick, note_params)
                 current_tick += abs(note_params[2])
 
