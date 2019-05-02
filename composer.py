@@ -1,6 +1,6 @@
 import numpy as np
 from common.clock import *
-from synth.sampler import SamplerDaemon
+from synth.sampler import SharedArrayPool
 
 class Conductor(object):
     """

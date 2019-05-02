@@ -66,13 +66,13 @@ class Shape(InstructionGroup):
         self.curve.width = 3.0
         self.add(self.curve)
         self.add(PopMatrix())
+        
+        self.shadow_reenable_time = 0
+        self.colors = [self.fill_color, self.stroke_color]
+        self.shadow_anims = {}
 
         self.make_synth()
         self.make_composer(sched, mixer)
-
-        self.colors = [self.fill_color, self.stroke_color]
-        self.shadow_anims = {}
-        self.shadow_reenable_time = 0
         self.update_color(animated=False)
 
     def set_points(self, points):

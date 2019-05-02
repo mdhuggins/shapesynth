@@ -34,8 +34,6 @@ class ShapeSynth(object):
 
         self.on_note = None
 
-        self.sampler = Sampler(self.gain, (self.x, self.y))
-
     def make_note(self, pitch, velocity, duration):
         """ Creates a generator to play a note.
 
@@ -46,7 +44,7 @@ class ShapeSynth(object):
         """
         if self.on_note is not None:
             self.on_note(pitch, velocity, duration)
-            
+
         # x = self.x
         # y = self.y
 
@@ -103,4 +101,4 @@ class ShapeSynth(object):
         #
         # mixer.add(noise)
 
-        return self.sampler.play_note(pitch, velocity)
+        return DaemonClientGenerator(SamplerManager.pool, (self.gain, (self.x, self.y)), pitch, gain)#, hash)
