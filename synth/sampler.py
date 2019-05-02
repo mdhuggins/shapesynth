@@ -4,9 +4,7 @@ from common.wavesrc import WaveFile
 import numpy as np
 
 import time
-from multiprocessing import Pipe, Process, Array
-import ctypes
-from collections import deque
+from .pool import SharedArrayPool
 
 # TODO Duration
 
@@ -111,121 +109,43 @@ bin_spectra_glock = [spectra_glock[b-2:b+3,:] for b in bins]
 bin_spectra_bass = [spectra_bass[b-2:b+3,:] for b in bins_bass]
 bin_spectra_cello = [spectra_cello[b-2:b+3,:] for b in bins_cello]
 
-def sampler_worker(pipe, in_array, out_array):
-    spectra = np.frombuffer(in_array.get_obj())
-    spectra.shape = SPECTRA_DIM
-    buf = np.frombuffer(out_array.get_obj())
-    while True:
-        params = pipe.recv()
-        if params == 'STOP':
-            break
-        buf[:] = 0
-        (gain, hop_size, duration), spectra_size = params[1]
-        env = np.concatenate((np.ones(int(round(duration-1)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
+samplers = {}
 
-        trimmed_spectra = spectra[:spectra_size[0], :spectra_size[1]]
-        trimmed_spectra = trimmed_spectra[:,:,0] + 1j * trimmed_spectra[:,:,1]
+def sampler_worker(requester, params):
+    sampler_params, pitch, gain = params
 
-        gen = SpectraGenerator(gain, trimmed_spectra, hop_size, env)
-        new_wave = gen.frames # np.random.random(size=(100,))
-        np.copyto(buf[:len(new_wave)], new_wave.astype(ctypes.c_double))
-        pipe.send((params, len(new_wave)))
+    if sampler_params not in samplers:
+        samplers[sampler_params] = Sampler(*sampler_params)
 
+    sampler = samplers[sampler_params]
+    gen = sampler.play_note(pitch, gain)
+    return gen.frames
 
-NUM_WORKERS = 3
-SPECTRA_DIM = (5000, 200, 2) # one for real, one for imaginary
-BUFFER_DIM = 20 * Audio.sample_rate
+class SamplerManager(object):
+    """
+    Manages a pool of workers that render waveforms using Samplers.
+    """
 
-class SamplerDaemon(object):
+    pool = None
+
     @classmethod
     def initialize(cls):
-        cls.parent_connections = []
-        cls.workers = []
-        cls.shared_mems = []
-        cls.buffers = []
-        cls.spectra_buffers = []
-        for i in range(NUM_WORKERS):
-            parent, child = Pipe()
-            cls.parent_connections.append(parent)
-            mem = Array(ctypes.c_double, BUFFER_DIM)
-            spec_mem = Array(ctypes.c_double, SPECTRA_DIM[0] * SPECTRA_DIM[1] * SPECTRA_DIM[2])
-
-            buf = np.frombuffer(mem.get_obj())
-            cls.shared_mems.append(mem)
-            cls.buffers.append(buf)
-
-            spec_buf = np.frombuffer(spec_mem.get_obj())
-            spec_buf.shape = SPECTRA_DIM
-            cls.shared_mems.append(spec_mem)
-            cls.spectra_buffers.append(spec_buf)
-
-            proc = Process(target=sampler_worker, args=(child, spec_mem, mem))
-            cls.workers.append(proc)
-            proc.start()
-        cls.open_workers = set(range(NUM_WORKERS))
-        cls.waiting = deque()
-        cls.results = {}
+        cls.pool = SharedArrayPool(20 * Audio.sample_rate, sampler_worker)
 
     @classmethod
-    def request(cls, requester, params, in_array):
-        """
-        in_array may be complex.
-        """
-        worker_idx = next(iter(cls.open_workers), None)
-        if worker_idx is None:
-            cls.waiting.append((requester, params, in_array))
-            return
-
-        a = time.time()
-        np.copyto(cls.spectra_buffers[worker_idx][:in_array.shape[0], :in_array.shape[1], 0], np.real(in_array).astype(ctypes.c_double))
-        np.copyto(cls.spectra_buffers[worker_idx][:in_array.shape[0], :in_array.shape[1], 1], np.imag(in_array).astype(ctypes.c_double))
-        b = time.time()
-        print((b - a) * 1000, 'ms to copy data')
-
-        cls.parent_connections[worker_idx].send((requester, (params, in_array.shape)))
-        d = time.time()
-        print((d - b) * 1000, 'ms to pipe')
-        cls.open_workers.remove(worker_idx)
-
-    @classmethod
-    def _get(cls):
-        for i, conn in enumerate(cls.parent_connections):
-            if conn.poll():
-                params, length = conn.recv()
-                buffer_contents = cls.buffers[i][:length]
-                cls.open_workers.add(i)
-                return params, buffer_contents
-
-    @classmethod
-    def get(cls, requester):
-        """
-        Checks if the given requester's wave has been computed, and if so,
-        returns the resulting wave.
-        """
-        if requester in cls.results:
-            ret = cls.results[requester]
-            del cls.results[requester]
-            return ret
-        return None
-
-    @classmethod
-    def stop(cls):
-        for conn, proc in zip(cls.parent_connections, cls.workers):
-            conn.send('STOP')
-            proc.join()
+    def stop_workers(cls):
+        cls.pool.stop()
 
     @classmethod
     def on_update(cls):
-        obj = cls._get()
-        if obj is not None:
-            (requester, params), contents = obj
-            cls.results[requester] = np.copy(contents)
-
-        for i in range(min(len(cls.waiting), len(cls.open_workers))):
-            job = cls.waiting.popleft()
-            cls.request(*job)
+        cls.pool.on_update()
 
 class Sampler(object):
+    """
+    Class that works in a background thread to generate waveforms based on
+    combinations of sampled spectra.
+    """
+
     def __init__(self, gain, coords):
         super(Sampler, self).__init__()
 
@@ -299,10 +219,10 @@ class Sampler(object):
             gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_glock[i] * self.mix[3]
 
 
-        len_env = int(round(self.duration-1)*Audio.sample_rate) + Audio.sample_rate
+        env = np.concatenate((np.linspace(0,1,Audio.sample_rate * 0.02), np.ones(int(round(self.duration-1.02)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
 
         # Crop spectra
-        gen_spectra = gen_spectra[:,:1+np.ceil(len_env/self.hop_size).astype('int')]
+        gen_spectra = gen_spectra[:,:1+np.ceil(len(env)/self.hop_size).astype('int')]
 
         # Re-synthesize
         # frames = istft(gen_spectra, self.hop_size)
@@ -315,8 +235,7 @@ class Sampler(object):
         # self.cache[pitch] = gen_spectra  #frames
 
         #hash = (self.duration, self.coords, pitch)
-
-        return DaemonClientGenerator(gen_spectra, self.gain * gain, self.hop_size, self.duration)#, hash)
+        return SpectraGenerator(self.gain * gain, gen_spectra, self.hop_size, env)
 
 class DaemonClientGenerator(object):
     """
@@ -325,17 +244,15 @@ class DaemonClientGenerator(object):
     sound, skips frames until the daemon returns.
     """
 
-    def __init__(self, in_array, *params):
-        SamplerDaemon.request(id(self), params, in_array)
+    def __init__(self, pool, *params):
+        self.pool = pool
+        self.pool.request(id(self), params)
         self.frames = None
         self.frame = 0
 
     def generate(self, num_frames, num_channels):
         if self.frames is None:
-            a = time.time()
-            self.frames = SamplerDaemon.get(id(self))
-            b = time.time()
-            print((b - a) * 1000, 'ms to get')
+            self.frames = self.pool.get(id(self))
 
         if self.frames is None:
             print("Can't play yet - no frames loaded!")
@@ -350,7 +267,7 @@ class DaemonClientGenerator(object):
         if padding > 0:
             output = np.append(output, np.zeros(padding))
 
-        return output, self.frame <= len(self.frames)
+        return output, self.frame < len(self.frames)
 
 waveform_cache = {}
 
@@ -463,7 +380,7 @@ class BufferedSpectraGenerator(object):
             output = np.append(output, np.zeros(padding))
 
         # return
-        contin = self.frame <= len(self.env)
+        contin = self.frame < len(self.env)
         if not contin:
             if self.hash not in waveform_cache:
                 print("added to cache")

@@ -51,14 +51,15 @@ class MainWidget(BaseWidget) :
         self.writer = AudioWriter('data') # for debugging audio output
         self.audio = Audio(1, self.writer.add_audio)
         self.mixer = Mixer()
-        self.mixer.set_gain(0.5)
+        self.mixer.set_gain(1)
         self.tempo_map  = SimpleTempoMap(92)
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
 
-        master_reverb = Reverb(self.sched)
+        #master_reverb = Reverb(self.sched)
 
-        self.audio.set_generator(master_reverb)
+        self.audio.set_generator(self.sched) #master_reverb)
+        SamplerManager.initialize()
         Conductor.initialize(self.sched)
         Conductor.start()
 
@@ -104,6 +105,7 @@ class MainWidget(BaseWidget) :
         Conductor.stop()
         for shape in self.shapes:
             shape.composer.stop()
+        SamplerManager.stop_workers()
         return False
 
     def on_update(self) :
