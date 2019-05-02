@@ -77,7 +77,7 @@ class MainWidget(BaseWidget) :
             self.gestures = [HoldGesture("create", self.get_mouse_pos, self.on_hold_gesture, None)]
 
         # Create cursors
-        self.margin = np.array([Window.width * 0.05, Window.width * 0.05])
+        self.margin = np.zeros(2)
         self.window_size = [Window.width - 2 * self.margin[0], Window.height - 2 * self.margin[1]]
         self.left_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5), border=False)
         self.canvas.add(self.left_hand)

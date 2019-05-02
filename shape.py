@@ -47,12 +47,12 @@ class Shape(InstructionGroup):
         self.rotation = Rotate(0.0)
         self.rotation_rate = np.random.uniform(-15.0, 15.0)
         self.add(PushMatrix())
-        self.translate = Translate(*(self.center * np.array([Window.width, Window.height])))
+        self.translate = Translate(*self.screen_center)
         self.add(self.translate)
         self.add(self.rotation)
         self.scale = Scale(1.0, 1.0)
         self.add(self.scale)
-        self.back_translate = Translate(*(-self.center * np.array([Window.width, Window.height])))
+        self.back_translate = Translate(*(-self.screen_center))
         self.add(self.back_translate)
         self.fill_color = Color(hsv=self.hsv)
         self.fill_color.a = 0.5
@@ -82,11 +82,11 @@ class Shape(InstructionGroup):
         self.curve.points = [coord for point in self.points for coord in point]
         self.update_mesh()
         self.make_shape_properties()
-        self.translate.xy = (self.center * np.array([Window.width, Window.height]))
-        self.back_translate.xy = (-self.center * np.array([Window.width, Window.height]))
+        self.translate.xy = self.screen_center
+        self.back_translate.xy = -self.screen_center
 
         for (shadow, color) in self.shadow_anims:
-            shadow.pos = self.center * np.array([Window.width, Window.height]) - np.array(shadow.size) / 2.0
+            shadow.pos = self.screen_center - np.array(shadow.size) / 2.0
 
     def set_alpha(self, alpha):
         self.fill_color.a = alpha / 2.0
@@ -96,7 +96,8 @@ class Shape(InstructionGroup):
         """
         Returns True if the given point is contained within the mesh.
         """
-        return point[0] >= self.min_x and point[0] <= self.max_x and point[1] >= self.min_y and point[1] <= self.max_y
+        dist = np.linalg.norm(point[:2] - self.screen_center)
+        return dist <= self.diameter / 2.0
 
     def update_mesh(self):
         """
@@ -132,12 +133,14 @@ class Shape(InstructionGroup):
         and/or composer.
         """
         point_array = np.array(self.points)
-        self.center = np.mean(point_array, axis=0) / np.array([Window.width, Window.height])
+        self.screen_center = np.mean(point_array, axis=0)
+        self.center = self.screen_center / np.array([Window.width, Window.height])
         self.min_x = np.min(point_array[:,0])
         self.max_x = np.max(point_array[:,0])
         self.min_y = np.min(point_array[:,1])
         self.max_y = np.max(point_array[:,1])
         self.area = (self.max_x - self.min_x) * (self.max_y - self.min_y)
+        self.diameter = np.linalg.norm(np.array([self.max_x, self.max_y]) - np.array([self.min_x, self.min_y]))
 
         self.roughness = 1  # In range [0,1]
 
@@ -324,7 +327,7 @@ class ShapeCreator(InstructionGroup):
                 self.accepting_points = False
                 self.smooth_shape()
                 self.on_complete(self.points)
-            elif dist < SHAPE_CLOSE_THRESHOLD and self.max_distance <= MAX_DISTANCE_THRESHOLD and len(self.points) > 15:
+            elif dist < SHAPE_CLOSE_THRESHOLD / 2 and self.max_distance <= MAX_DISTANCE_THRESHOLD and dist <= self.max_distance and len(self.points) > 15:
                 self.accepting_points = False
                 self.on_complete([])
             elif dist > self.max_distance:
@@ -334,13 +337,12 @@ class ShapeCreator(InstructionGroup):
         """Updates the points to be smoother and form a closed boundary."""
         # Apply LPF to the points to smooth out the shape
         points = np.array([(self.points[i], self.points[i + 1]) for i in range(0, len(self.points), 2)])
-        filter = butter(4, 0.2, btype='lowpass')
-        point_x = lfilter(*filter, np.concatenate([points[::-1,0], points[:,0]]))[len(points):]
-        point_y = lfilter(*filter, np.concatenate([points[::-1,1], points[:,1]]))[len(points):]
-        new_points = [coord for i in range(len(point_x)) for coord in [point_x[i], point_y[i]]]
-
-        # Make sure the shape is closed
-        new_points += (point_x[0], point_y[0])
+        filter = butter(4, 0.4, btype='lowpass')
+        # LPF the full cycle, so we're sure the shape is contiguous
+        point_x = lfilter(*filter, np.concatenate([points[:,0], points[:,0]]))[len(points) // 2:len(points) + len(points) // 2 + 1]
+        point_y = lfilter(*filter, np.concatenate([points[:,1], points[:,1]]))[len(points) // 2:len(points) + len(points) // 2 + 1]
+        point_indexes = list(range(len(point_x) // 2, len(point_x))) + list(range(len(point_x) // 2 + 1))
+        new_points = [coord for i in point_indexes for coord in [point_x[i], point_y[i]]]
 
         self.points = new_points
         self.line.points = self.points
@@ -374,7 +376,7 @@ class ShapeCreator(InstructionGroup):
         # Handle new points
         if self.accepting_points:
             new_pos = self.source()
-            if (len(new_pos) > 2 and new_pos[2] > 0.7) or len(self.points) > 800:
+            if new_pos is not None and ((len(new_pos) > 2 and new_pos[2] > 0.7) or len(self.points) > 800):
                 # The user stopped drawing - cancel
                 self.accepting_points = False
                 self.on_complete([])
@@ -425,7 +427,7 @@ class ShapeEditor(InstructionGroup):
         self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.3))
         self.add(self.bg_color)
         self.add(Rectangle(pos=(0,0), size=(Window.width, Window.height)))
-        self.shape_center = self.shape.center * np.array([Window.width, Window.height])
+        self.shape_center = self.shape.screen_center
 
         self.add(PushMatrix())
         self.translate = Translate(0, 0)
