@@ -1,17 +1,20 @@
 from common.audio import *
+from common.writer import *
 from common.wavesrc import WaveFile
 
 import numpy as np
 
 import time
-from .pool import SharedArrayPool
+from .pool import *
 
 # TODO Duration
 
+# If True, use a synchronous pool instead of a multiprocessed one
+DEBUG_SAMPLER = False
 
 # Helpers
 
-def stft(x, fft_len, hop_size):
+def stft(x, fft_len, hop_size, zp_factor=1):
     padded_x = np.concatenate((np.zeros(int(hop_size / 2)), x))
 
     result = []
@@ -22,9 +25,9 @@ def stft(x, fft_len, hop_size):
         window = np.hanning(len(window)) * window  # Apply hanning
         window = np.concatenate(
             (window, np.zeros(fft_len - len(window))))  # Pad if too short
-        # window = np.concatenate((window, np.zeros(fft_len*3)))  # Pad  # TODO
+        window = np.concatenate((window, np.zeros(fft_len*(zp_factor-1))))  # Pad  # TODO
 
-        fft = np.fft.fft(window)[:int(np.ceil(1 + fft_len / 2))]
+        fft = np.fft.rfft(window)#[:int(np.ceil(1 + fft_len / 2))]
         result.append(fft)
 
         i += hop_size
@@ -45,11 +48,12 @@ def apply_in_window(x, x_h, position, centered=True):
                                             :min(len(x_h), len(x) - position)]
 
 
-def istft(X, hop_size, centered=True):
-    N = (X.shape[0] - 1) * 2
+def istft(X, hop_size, zp_factor=1, centered=True):
+    N = (X.shape[0] - 1) * 2 // zp_factor
     x = np.zeros((hop_size * (X.shape[1] - 1) + N,))
     for col in range(X.shape[1]):
         x_h = np.fft.irfft(X[:, col])
+        x_h = x_h[:len(x_h) // zp_factor]
         apply_in_window(x, x_h, col * hop_size, centered)
     W = np.zeros_like(x)
     for h in range(0, W.shape[0], hop_size):
@@ -87,12 +91,14 @@ wav_cello = np.concatenate((wav_cello, np.zeros(pad-len(wav_cello))))
 
 fft_len = 1024 * 6
 hop_size = 512 * 6
+bin_radius = 4
+zp_factor = 1
 
 # Get spectra
-spectra_piano = stft(wav_piano, fft_len, hop_size)
-spectra_glock = stft(wav_glock, fft_len, hop_size)
-spectra_bass = stft(wav_bass, fft_len, hop_size)
-spectra_cello = stft(wav_cello, fft_len, hop_size)
+spectra_piano = stft(wav_piano, fft_len, hop_size, zp_factor=zp_factor)
+spectra_glock = stft(wav_glock, fft_len, hop_size, zp_factor=zp_factor)
+spectra_bass = stft(wav_bass, fft_len, hop_size, zp_factor=zp_factor)
+spectra_cello = stft(wav_cello, fft_len, hop_size, zp_factor=zp_factor)
 
 # Bins to extract
 f0_bin = freq_to_bin(pitch_to_freq(88), fft_len, Audio.sample_rate)
@@ -104,10 +110,10 @@ bins_bass = [round(f0_bin_bass * i) for i in range(1, 9)]
 f0_bin_cello = freq_to_bin(pitch_to_freq(48), fft_len, Audio.sample_rate)
 bins_cello = [round(f0_bin_cello * i) for i in range(1, 9)]
 
-bin_spectra_piano = [spectra_piano[b-2:b+3,:] for b in bins]
-bin_spectra_glock = [spectra_glock[b-2:b+3,:] for b in bins]
-bin_spectra_bass = [spectra_bass[b-2:b+3,:] for b in bins_bass]
-bin_spectra_cello = [spectra_cello[b-2:b+3,:] for b in bins_cello]
+bin_spectra_piano = [spectra_piano[b - bin_radius:b + bin_radius + 1,:] for b in bins]
+bin_spectra_glock = [spectra_glock[b - bin_radius:b + bin_radius + 1,:] for b in bins]
+bin_spectra_bass = [spectra_bass[b - bin_radius:b + bin_radius + 1,:] for b in bins_bass]
+bin_spectra_cello = [spectra_cello[b - bin_radius:b + bin_radius + 1,:] for b in bins_cello]
 
 samplers = {}
 
@@ -130,7 +136,10 @@ class SamplerManager(object):
 
     @classmethod
     def initialize(cls):
-        cls.pool = SharedArrayPool(20 * Audio.sample_rate, sampler_worker)
+        if DEBUG_SAMPLER:
+            cls.pool = SynchronousPool(20 * Audio.sample_rate, sampler_worker)
+        else:
+            cls.pool = SharedArrayPool(20 * Audio.sample_rate, sampler_worker)
 
     @classmethod
     def stop_workers(cls):
@@ -212,11 +221,13 @@ class Sampler(object):
         gen_spectra = np.zeros_like(self.spectra_piano)
 
         for i in range(len(new_bins)):
-            # TODO What if bins are too low?
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_bass[i] * self.mix[0]
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_cello[i] * self.mix[1]
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_piano[i] * self.mix[2]
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_glock[i] * self.mix[3]
+            for mix_coef, spectrum in zip(self.mix, [self.bin_spectra_bass[i], self.bin_spectra_cello[i], self.bin_spectra_piano[i], self.bin_spectra_glock[i]]):
+                if new_bins[i] < bin_radius: # Too low
+                    gen_spectra[:new_bins[i] + bin_radius + 1, :] += spectrum[:len(spectrum) - (bin_radius - new_bins[i])] * mix_coef
+                elif new_bins[i] + bin_radius + 1 >= len(gen_spectra): # Too high
+                    gen_spectra[new_bins[i] - bin_radius:, :] += spectrum[len(spectrum) - (new_bins[i] + bin_radius + 1 - len(gen_spectra)):] * mix_coef
+                else: # Just right
+                    gen_spectra[new_bins[i] - bin_radius:new_bins[i] + bin_radius + 1, :] += spectrum * mix_coef
 
 
         env = np.concatenate((np.linspace(0,1,Audio.sample_rate * 0.02), np.ones(int(round(self.duration-1.02)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
@@ -394,7 +405,7 @@ class SpectraGenerator(object):
         self.hop_size = hop_size
         self.env = env
 
-        self.frames = istft(self.spectra, self.hop_size)
+        self.frames = istft(self.spectra, self.hop_size, zp_factor=zp_factor)
 
         # Apply envelope
         env = np.concatenate((self.env, np.zeros(len(self.frames)-len(self.env))))

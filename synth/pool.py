@@ -22,6 +22,31 @@ def _worker(pipe, out_array, array_fill_worker):
         np.copyto(buf[:len(new_wave)], new_wave.astype(ctypes.c_double))
         pipe.send((params, len(new_wave)))
 
+class SynchronousPool(object):
+    """
+    A mock pool class that implements the same methods as SharedArrayPool, but
+    performs its work synchronously for debugging purposes.
+    """
+    def __init__(self, buffer_dim, array_fill_worker, num_workers=3):
+        self.worker = array_fill_worker
+        self.results = {}
+
+    def request(self, requester, params):
+        self.results[requester] = self.worker(requester, params)
+
+    def get(self, requester):
+        if requester in self.results:
+            ret = self.results[requester]
+            del self.results[requester]
+            return ret
+        return None
+
+    def stop(self):
+        pass
+
+    def on_update(self):
+        pass
+
 
 class SharedArrayPool(object):
     """
