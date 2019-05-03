@@ -7,7 +7,8 @@ import time
 from threading import Thread
 
 # TODO Duration
-
+import random
+from multiprocessing import Process, Pipe, sharedctypes
 
 # Helpers
 
@@ -164,29 +165,28 @@ class Sampler(object):
 
     def play_note(self, pitch, gain):
 
-        # if pitch in self.cache:
-            # return SpectraGenerator(self.gain * gain, gen_spectra,
-            #                         self.hop_size, env)
+        env = np.concatenate((np.ones(int(round(self.duration - 1) * Audio.sample_rate)), np.linspace(1, 0, Audio.sample_rate)))
 
-        # Calculate new bins
-        new_f0_bin = freq_to_bin(pitch_to_freq(pitch), self.fft_len, Audio.sample_rate)
-        new_bins = [int(round(new_f0_bin * i)) for i in range(1, 9)]
+        if pitch not in self.cache:
 
-        # Assemble new spectra
-        gen_spectra = np.zeros_like(self.spectra_piano)
+            # Calculate new bins
+            new_f0_bin = freq_to_bin(pitch_to_freq(pitch), self.fft_len, Audio.sample_rate)
+            new_bins = [int(round(new_f0_bin * i)) for i in range(1, 9)]
 
-        for i in range(len(new_bins)):
-            # TODO What if bins are too low?
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_bass[i] * self.mix[0]
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_cello[i] * self.mix[1]
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_piano[i] * self.mix[2]
-            gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_glock[i] * self.mix[3]
+            # Assemble new spectra
+            gen_spectra = np.zeros_like(self.spectra_piano)
+
+            for i in range(len(new_bins)):
+                # TODO What if bins are too low?
+                gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_bass[i] * self.mix[0]
+                gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_cello[i] * self.mix[1]
+                gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_piano[i] * self.mix[2]
+                gen_spectra[new_bins[i] - 2:new_bins[i] + 3, :] += self.bin_spectra_glock[i] * self.mix[3]
 
 
-        env = np.concatenate((np.ones(int(round(self.duration-1)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
 
-        # Crop spectra
-        gen_spectra = gen_spectra[:,:1+np.ceil(len(env)/self.hop_size).astype('int')]
+            # Crop spectra
+            gen_spectra = gen_spectra[:,:1+np.ceil(len(env)/self.hop_size).astype('int')]
 
         # Re-synthesize
         # frames = istft(gen_spectra, self.hop_size)
@@ -196,13 +196,164 @@ class Sampler(object):
         # env = np.concatenate((env, np.zeros(len(frames)-len(env))))
         # frames *= env
 
-        # self.cache[pitch] = gen_spectra  #frames
+            self.cache[pitch] = gen_spectra
+        else:
+            gen_spectra = self.cache[pitch]
 
         hash = (self.duration, self.coords, pitch)
 
-        return BufferedSpectraGenerator(self.gain * gain, gen_spectra, self.hop_size, env, hash)
+        return MultiBufferedSpectraGenerator(self.gain * gain, gen_spectra, self.hop_size, env, hash)
 
 waveform_cache = {}
+
+class MultiBufferedSpectraGenerator(object):
+    def __init__(self, gain, spectra, hop_size, env, hash):
+        self.gain = gain
+        self.spectra = spectra
+        self.hop_size = hop_size
+        self.env = env
+
+        # TODO Apply envelope
+
+        # State information
+        self.frame = 0
+        self.hops = 0
+        self.playing = True
+
+        self.hash = hash
+
+
+
+        self.rendered_frame = 0
+
+        self.t = None
+
+        self.parent_conn, self.child_conn = Pipe()
+
+
+        if self.hash in waveform_cache:
+            print("cached!")
+            self.frames = waveform_cache[self.hash]
+            self.hops = self.spectra.shape[1]+1
+            self.done_rendering = True
+        else:
+
+            self.N = (self.spectra.shape[0] - 1) * 2
+            self.x = np.zeros(
+                (hop_size * (self.spectra.shape[1] - 1) + self.N,))
+
+            self.x_shared = sharedctypes.RawArray('d', len(self.x))
+            self.x_shared[:] = self.x
+
+            W = np.zeros_like(self.x)
+            for h in range(0, W.shape[0], hop_size):
+                sub_w = np.hanning(self.N)
+                apply_in_window(W, sub_w, h, True)
+
+            W = np.where(np.abs(W) < 0.001, 0.001, W)
+            self.W = W
+
+            hops = 1
+            # print("about to send")
+            self.parent_conn.send((self.hop_size, self.hops, hops))
+            # print("sent")
+            p = Process(target=self.istft_step_fn, args=(self.child_conn,self.spectra, self.x))
+            p.start()
+            # print(parent_conn.recv())  # prints "[42, None, 'hello']"
+            # p.join()
+
+            new_hops, new_frames, done = self.parent_conn.recv()
+            self.done_rendering = done
+            self.hops += new_hops
+            self.rendered_frame += new_frames
+            self.frames = self.x / self.W
+
+        self.waiting = 0
+
+
+        self.id = int(10000*random.random())
+
+
+    def istft_step_fn(self, conn, spectra, x):
+        # print("in")
+        hop_size, hops_count, hops = conn.recv()
+        # print("in received")
+
+        if hops_count > spectra.shape[1]:
+            # print("in returning")
+            conn.send((0, 0, True))
+            conn.close()
+            # print("in returned")
+            return
+        for col in range(hops_count, min(spectra.shape[1], hops_count+hops)):
+            x_h = np.fft.irfft(spectra[:, col])
+
+            apply_in_window(x, x_h, col * hop_size, True)
+            # print(np.sum(x))
+        new_hops = hops
+        new_frames = hop_size * hops
+        # print("in about to send")
+        conn.send((new_hops, new_frames, False))
+        # print("in sent")
+        conn.close()
+        # print("in end")
+
+
+    def note_off(self):
+        """ Stop playing.
+
+        :return: None
+        """
+        self.playing = False
+
+    def generate(self, num_frames, num_channels) :
+        # Add to buffer
+        # if self.rendered_frame - self.frame < 2048 and not self.waiting:  # TODO
+        if not self.done_rendering and self.rendered_frame - self.frame < 2048 and not self.waiting:  # TODO
+            print(self.id, 'ask', self.rendered_frame)
+            self.waiting += 1
+            hops = 10000
+            # print("about to send")
+            self.parent_conn.send((self.hop_size, self.hops, hops))
+            # print("sent")
+            p = Process(target=self.istft_step_fn, args=(self.child_conn,self.spectra, self.x_shared))
+            p.start()
+            # print(parent_conn.recv())  # prints "[42, None, 'hello']"
+            # p.join()
+
+
+        if self.parent_conn.poll():
+            new_hops, new_frames, done = self.parent_conn.recv()
+            self.done_rendering = done
+            self.hops += new_hops
+            self.rendered_frame += new_frames
+            self.frames = self.x_shared / self.W
+            self.waiting -= 1
+            print(self.id, 'get', self.rendered_frame)
+
+        # Get frames
+        output = np.random.random(num_frames)
+        # output = self.frames[self.frame:self.frame+num_frames]
+
+        # TODO apply envelope
+
+        # Check for end of buffer
+        actual_num_frames = len(output) // num_channels
+
+        self.frame += actual_num_frames
+
+        # Pad if output is too short
+        padding = num_frames * num_channels - len(output)
+        if padding > 0:
+            output = np.append(output, np.zeros(padding))
+
+        # return
+        contin = self.frame <= len(self.env)
+        if not contin:
+            if self.hash not in waveform_cache:
+                print("added to cache")
+                waveform_cache[self.hash] = self.frames
+        return output * self.gain, contin
 
 class BufferedSpectraGenerator(object):
     def __init__(self, gain, spectra, hop_size, env, hash):

@@ -49,7 +49,7 @@ class Reverb(object):
             self.buffer[df:df+num_frames] += output / denom
 
         # Add buffer to current output
-        # output += self.buffer[:num_frames]
+        output += self.buffer[:num_frames]
 
         # Advance buffer
         self.buffer = np.concatenate((self.buffer[num_frames:], np.zeros(num_frames)))

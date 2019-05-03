@@ -56,9 +56,9 @@ class MainWidget(BaseWidget) :
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
 
-        master_reverb = Reverb(self.sched)
+        # master_reverb = Reverb(self.sched)
 
-        self.audio.set_generator(master_reverb)
+        self.audio.set_generator(self.sched)
         Conductor.initialize(self.sched)
         Conductor.start()
 
