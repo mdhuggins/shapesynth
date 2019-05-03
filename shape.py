@@ -13,7 +13,7 @@ from kivy.clock import Clock as kivyClock
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy.signal import lfilter, butter
-import tripy
+from triangulation import earclip
 import matplotlib.pyplot as plt
 
 from composer import *
@@ -109,7 +109,7 @@ class Shape(InstructionGroup):
             vertices += [point[0], point[1], 0, 0]
 
         # Use earclipping algorithm to triangulate the shape
-        triangles = tripy.earclip(self.points)
+        triangles = earclip(self.points)
         indices = []
         for point1, point2, point3 in triangles:
             indices += [self.points.index(point1), self.points.index(point2), self.points.index(point3)]
