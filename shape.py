@@ -13,7 +13,7 @@ from kivy.clock import Clock as kivyClock
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy.signal import lfilter, butter
-import tripy
+from triangulation import earclip
 import matplotlib.pyplot as plt
 
 from composer import *
@@ -109,7 +109,7 @@ class Shape(InstructionGroup):
             vertices += [point[0], point[1], 0, 0]
 
         # Use earclipping algorithm to triangulate the shape
-        triangles = tripy.earclip(self.points)
+        triangles = earclip(self.points)
         indices = []
         for point1, point2, point3 in triangles:
             indices += [self.points.index(point1), self.points.index(point2), self.points.index(point3)]
@@ -209,10 +209,10 @@ class Shape(InstructionGroup):
         new_circle = Rectangle(pos=(center[0] - dim / 2, center[1] - dim / 2), size=(dim, dim))
         #new_circle = CEllipse(cpos=center, csize=(dim, dim), texture=tex)
         color = Color(hsv=self.fill_color.hsv)
-        color.a = 0.3
+        color.a = 0.4
         self.colors.append(color)
         duration = 4.0
-        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 10.0)), KFAnim((0.0, 0.3), (duration, 0.0)))
+        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 10.0)), KFAnim((0.0, 0.4), (duration, 0.0)))
         self.insert(self.shadow_index, new_circle)
         self.insert(self.shadow_index, color)
         self.insert(self.shadow_index, BindTexture(source='res/blur_circle.png'))
@@ -284,9 +284,9 @@ class ShapeCreator(InstructionGroup):
 
         self.points = []
         self.hsv = hsv
-        self.bg_color = Color(hsv=self.hsv)
+        self.bg_color = Color(hsv=(0.6, 0.9, 0.3))
         self.bg_color.a = 0.0
-        self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.3))
+        self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.7))
         self.shape_alpha_anim = None
         self.add(self.bg_color)
         self.add(Rectangle(pos=(0,0), size=(Window.width, Window.height)))
@@ -422,9 +422,9 @@ class ShapeEditor(InstructionGroup):
         self.shape = shape
 
         self.hsv = hsv
-        self.bg_color = Color(hsv=self.hsv)
+        self.bg_color = Color(hsv=(0.6, 0.9, 0.3))
         self.bg_color.a = 0.0
-        self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.3))
+        self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.7))
         self.add(self.bg_color)
         self.add(Rectangle(pos=(0,0), size=(Window.width, Window.height)))
         self.shape_center = self.shape.screen_center
