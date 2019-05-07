@@ -25,6 +25,7 @@ from shape import *
 from gesture import *
 from keyboard import *
 from color import *
+from cursor import AnimatedCursor
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -67,31 +68,37 @@ class MainWidget(BaseWidget) :
         self.kinect = Kinect()
         self.kinect.add_joint(Kinect.kLeftHand)
         self.kinect.add_joint(Kinect.kRightHand)
+        self.touch_pos = None
         self.mouse_pos = None
         self.shape_scale = 500.0 / Window.width # After drawing shapes, transform by this scale factor
 
-        # Set up hold gestures, which trigger shape manipulation
+        # Set up hold gestures and cursors
+        self.cursors = AnimGroup()
+        self.canvas.add(self.cursors)
         if USE_KINECT:
             self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front),
                              HoldGesture("create", self.get_right_pos, self.on_hold_gesture, self.is_in_front)]
+            self.left_hand = AnimatedCursor(self.get_left_pos)
+            self.right_hand = AnimatedCursor(self.get_right_pos)
+            self.cursors.add(self.left_hand)
+            self.cursors.add(self.right_hand)
         else:
-            self.gestures = [HoldGesture("create", self.get_mouse_pos, self.on_hold_gesture, None)]
+            self.gestures = [HoldGesture("create", self.get_touch_pos, self.on_hold_gesture, None)]
+            self.cursor = AnimatedCursor(self.get_mouse_pos)
+            self.cursors.add(self.cursor)
+            Window.bind(mouse_pos=self.on_mouse_pos)
+
+        self.interaction_anims = AnimGroup()
+        self.canvas.add(self.interaction_anims)
 
         # Create cursors
         self.margin = np.zeros(2)
         self.window_size = [Window.width - 2 * self.margin[0], Window.height - 2 * self.margin[1]]
-        self.left_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5), border=False)
-        self.canvas.add(self.left_hand)
-        self.right_hand = Cursor3D(self.window_size, self.margin.tolist(), (0.5, 0.5, 0.5), border=False)
-        self.canvas.add(self.right_hand)
 
         self.palette = ColorPalette()
         self.shapes = []
         self.shape_creator = None
         self.shape_editor = None
-
-        self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
 
         # MIDI
         self.keyboard = Keyboard(self.on_chord_change)
@@ -110,10 +117,6 @@ class MainWidget(BaseWidget) :
 
     def on_update(self) :
         self.kinect.on_update()
-        norm_right = self.get_right_pos(screen=False)
-        norm_left = self.get_left_pos(screen=False)
-        self.left_hand.set_pos(norm_left)
-        self.right_hand.set_pos(norm_right)
 
         if USE_KINECT and not self.is_tracking():
             self.label.text = ''
@@ -125,6 +128,7 @@ class MainWidget(BaseWidget) :
             gesture.on_update()
 
         self.interaction_anims.on_update()
+        self.cursors.on_update()
         if len(self.label.text) == 0:
             if USE_KINECT and not self.is_tracking():
                 self.label.text = 'Hold your arms up to begin.'
@@ -166,11 +170,13 @@ class MainWidget(BaseWidget) :
     # Mouse movement callbacks
 
     def on_touch_down(self, touch):
-        self.mouse_pos = np.array(touch.pos)
+        self.touch_pos = np.array(touch.pos)
     def on_touch_up(self, touch):
-        self.mouse_pos = None
+        self.touch_pos = None
     def on_touch_move(self, touch):
-        self.mouse_pos = np.array(touch.pos)
+        self.touch_pos = np.array(touch.pos)
+    def on_mouse_pos(self, window, pos):
+        self.mouse_pos = np.array(pos)
 
     # Methods called by gestures to get current positions
 
@@ -180,6 +186,8 @@ class MainWidget(BaseWidget) :
     def get_right_pos(self, screen=True):
         pt = self.kinect.get_joint(Kinect.kRightHand)
         return self.kinect_to_screen(pt) if screen else scale_point(pt, kKinectRange)
+    def get_touch_pos(self):
+        return self.touch_pos
     def get_mouse_pos(self):
         return self.mouse_pos
 
@@ -259,7 +267,7 @@ class MainWidget(BaseWidget) :
                 self.gestures.insert(0, HoldGesture(new_shape, self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
                 self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
             else:
-                self.gestures.insert(0, HoldGesture(new_shape, self.get_mouse_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_touch_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
         else:
             def on_creator_completion():
                 self.interaction_anims.remove(self.shape_creator)
@@ -276,6 +284,8 @@ class MainWidget(BaseWidget) :
         """
         Called when the shape editor detects the user is finished.
         """
+        if self.shape_editor is None:
+            return
         def on_editor_completion():
             self.interaction_anims.remove(self.shape_editor)
             self.shape_editor = None
