@@ -66,7 +66,7 @@ class Shape(InstructionGroup):
         self.curve.width = 3.0
         self.add(self.curve)
         self.add(PopMatrix())
-        
+
         self.shadow_reenable_time = 0
         self.colors = [self.fill_color, self.stroke_color]
         self.shadow_anims = {}
@@ -209,7 +209,7 @@ class Shape(InstructionGroup):
         new_circle = Rectangle(pos=(center[0] - dim / 2, center[1] - dim / 2), size=(dim, dim))
         #new_circle = CEllipse(cpos=center, csize=(dim, dim), texture=tex)
         color = Color(hsv=self.fill_color.hsv)
-        color.a = 0.4
+        color.a = 0.2
         self.colors.append(color)
         duration = 4.0
         self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 10.0)), KFAnim((0.0, 0.4), (duration, 0.0)))

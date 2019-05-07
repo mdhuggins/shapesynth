@@ -72,24 +72,28 @@ class MainWidget(BaseWidget) :
         self.mouse_pos = None
         self.shape_scale = 500.0 / Window.width # After drawing shapes, transform by this scale factor
 
+        self.interaction_anims = AnimGroup()
+        self.canvas.add(self.interaction_anims)
+
         # Set up hold gestures and cursors
         self.cursors = AnimGroup()
         self.canvas.add(self.cursors)
+        self.cursor_map = {}
         if USE_KINECT:
-            self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front),
-                             HoldGesture("create", self.get_right_pos, self.on_hold_gesture, self.is_in_front)]
+            self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel),
+                             HoldGesture("create", self.get_right_pos, self.on_hold_gesture, self.is_in_front, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel)]
             self.left_hand = AnimatedCursor(self.get_left_pos)
             self.right_hand = AnimatedCursor(self.get_right_pos)
             self.cursors.add(self.left_hand)
             self.cursors.add(self.right_hand)
+            self.cursor_map[self.get_left_pos] = self.left_hand
+            self.cursor_map[self.get_right_pos] = self.right_hand
         else:
-            self.gestures = [HoldGesture("create", self.get_touch_pos, self.on_hold_gesture, None)]
+            self.gestures = [HoldGesture("create", self.get_touch_pos, self.on_hold_gesture, None, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel)]
             self.cursor = AnimatedCursor(self.get_mouse_pos)
             self.cursors.add(self.cursor)
             Window.bind(mouse_pos=self.on_mouse_pos)
-
-        self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
+            self.cursor_map[self.get_touch_pos] = self.cursor
 
         # Create cursors
         self.margin = np.zeros(2)
@@ -220,6 +224,9 @@ class MainWidget(BaseWidget) :
         """Called when a hold gesture is completed."""
 
         if gesture.identifier == "create":
+            cursor = self.cursor_map[gesture.source]
+            cursor.set_state(AnimatedCursor.DRAWING)
+
             if any(g for g in self.gestures if g.identifier != "create" and g.is_recognizing()):
                 print("Another gesture is recognizing")
                 return
@@ -233,6 +240,9 @@ class MainWidget(BaseWidget) :
                 gest.set_enabled(False)
 
         elif gesture.identifier in self.shapes:
+            cursor = self.cursor_map[gesture.source]
+            cursor.set_state(AnimatedCursor.EDITING)
+
             editing_shape = gesture.identifier
             self.interaction_anims.remove(editing_shape)
             self.shape_editor = ShapeEditor((0.4, 0.7, 0.8), editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
@@ -242,6 +252,16 @@ class MainWidget(BaseWidget) :
             # Disable other gestures while editing a shape
             for gest in self.gestures:
                 gest.set_enabled(False)
+
+    def on_hold_gesture_trigger(self, gesture):
+        """Called when a hold gesture begins."""
+        cursor = self.cursor_map[gesture.source]
+        cursor.set_state(AnimatedCursor.HOLDING)
+
+    def on_hold_gesture_cancel(self, gesture):
+        """Called when a hold gesture is canceled."""
+        cursor = self.cursor_map[gesture.source]
+        cursor.set_state(AnimatedCursor.NORMAL)
 
     def on_shape_creator_complete(self, points):
         """
@@ -264,10 +284,10 @@ class MainWidget(BaseWidget) :
 
             # Add hold gestures for this shape
             if USE_KINECT:
-                self.gestures.insert(0, HoldGesture(new_shape, self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
-                self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x)))
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_left_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x), on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel))
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x), on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel))
             else:
-                self.gestures.insert(0, HoldGesture(new_shape, self.get_touch_pos, self.on_hold_gesture, hit_test=new_shape.hit_test))
+                self.gestures.insert(0, HoldGesture(new_shape, self.get_touch_pos, self.on_hold_gesture, hit_test=new_shape.hit_test, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel))
         else:
             def on_creator_completion():
                 self.interaction_anims.remove(self.shape_creator)
