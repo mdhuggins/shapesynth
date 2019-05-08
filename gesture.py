@@ -64,7 +64,7 @@ class HoldGesture(Gesture):
 
         # Reset if no position available, or not in desired window
         if pos is None or (self.hit_test is not None and not self.hit_test(pos)):
-            if self.recognizing:
+            if self.recognizing and self.on_cancel is not None:
                 self.on_cancel(self)
             self.original_pos = None
             self.start_time = None
@@ -88,7 +88,7 @@ class HoldGesture(Gesture):
             elif time.time() - self.start_time >= self.hold_time / 4.0 and self.on_trigger is not None:
                 self.on_trigger(self)
         else:
-            if self.recognizing:
+            if self.recognizing and self.on_cancel is not None:
                 self.on_cancel(self)
             self.recognizing = False
             self.original_pos = None

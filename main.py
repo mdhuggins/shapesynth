@@ -267,6 +267,9 @@ class MainWidget(BaseWidget) :
         """
         Called when the shape creator detects the shape is closed.
         """
+        if self.shape_creator is None:
+            return
+
         if len(points) > 0:
             # Translate and scale the points around the first point
             new_points = [((points[i] - points[0]) * self.shape_scale + points[0], (points[i + 1] - points[1]) * self.shape_scale + points[1]) for i in range(0, len(points), 2)]
