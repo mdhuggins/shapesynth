@@ -17,17 +17,24 @@ class AnimatedCursor(InstructionGroup):
     drawing_cloud_scale = 0.3
 
     normal_radius_proportion = 0.5
-    drawing_radius_proportion = 0.3
+    drawing_radius_proportion = 0.05
+
+    normal_shadow_alpha = 0.4
+    drawing_shadow_alpha = 0.0
 
     NORMAL = 'normal'
     HOLDING = 'holding'
     DRAWING = 'drawing'
     EDITING = 'editing'
 
-    def __init__(self, source):
+    def __init__(self, source, normal_hsv=(0.5, 0.7, 0.8), drawing_hsv=(0.5, 0.7, 0.8), editing_hsv=(0.5, 0.7, 0.8)):
         super(AnimatedCursor, self).__init__()
 
-        self.color = Color(hsv=(0.5, 0.7, 0.8))
+        self.normal_hsv = normal_hsv
+        self.drawing_hsv = drawing_hsv
+        self.editing_hsv = editing_hsv
+
+        self.color = Color(hsv=self.normal_hsv)
         self.color.a = AnimatedCursor.normal_alpha
 
         self.source = source
@@ -45,9 +52,19 @@ class AnimatedCursor(InstructionGroup):
         self.scale = Scale(1)
         self.add(self.translate)
         self.add(self.scale)
-        self.add(self.color)
 
+        # Shadow
+        self.shadow_color = Color(0.0, 0.0, 0.0)
+        self.shadow_color.a = AnimatedCursor.normal_shadow_alpha
+        shadow_size = self.dim * 4.0
+        self.add(self.shadow_color)
+        self.shadow = Rectangle(pos=(-shadow_size / 2.0, -shadow_size / 2.0), size=(shadow_size, shadow_size), source='res/blur_circle_more.png')
+        self.add(self.shadow)
+
+        self.add(self.color)
         self.add(PushMatrix())
+
+        # Clouds
         self.cloud_scale = Scale(1)
         self.add(self.cloud_scale)
 
@@ -72,6 +89,7 @@ class AnimatedCursor(InstructionGroup):
         self.back_translate = Translate(0, 0)
         self.add(self.back_translate)
 
+        # Dots
         dot_positions = []
         dot_velocities = []
         self.dots = []
@@ -85,7 +103,7 @@ class AnimatedCursor(InstructionGroup):
 
             pos = (np.random.uniform(-self.dim / 2, self.dim / 2), np.random.uniform(-self.dim / 2, self.dim / 2))
             dot = Ellipse(pos=(self.translate.x + pos[0] - self.dot_size / 2, self.translate.y + pos[1] - self.dot_size / 2), size=(self.dot_size, self.dot_size))
-            dot_color = Color(hsv=(0.5, 0.8, 1.0))
+            dot_color = Color(hsv=self.normal_hsv)
             self.add(dot_color)
             self.add(dot)
             self.dots.append(dot)
@@ -100,7 +118,7 @@ class AnimatedCursor(InstructionGroup):
 
     def set_pos(self, pos):
         if len(pos) > 2:
-            new_scale = 0.5 + pos[2] * (1.5 - 0.5)
+            new_scale = 0.5 + np.sqrt(pos[2]) * (1.5 - 0.5)
             self.scale.x = new_scale
             self.scale.y = new_scale
         self.translate.xy = pos[0:2]
@@ -136,7 +154,7 @@ class AnimatedCursor(InstructionGroup):
 
     def update_cloud_positions(self):
         """Sets the clouds' positions based on the self.cloud_positions array."""
-        r = self.dim / 4.0
+        r = self.dim / 5.0
         cloud_x = r * np.sin(self.cloud_positions[:,1]) * np.cos(self.cloud_positions[:,0])
         cloud_y = r * np.sin(self.cloud_positions[:,1]) * np.sin(self.cloud_positions[:,0])
 
@@ -158,23 +176,20 @@ class AnimatedCursor(InstructionGroup):
             if self.state == AnimatedCursor.HOLDING:
                 self.dot_positions[:,0] -= self.theta_velocity * dt
                 self.theta_velocity += 3.0 * dt
-            elif self.is_in_control_state() and self.theta_velocity >= 0.0:
-                self.dot_positions[:,0] -= self.theta_velocity * dt
-                self.dot_positions[:,1] = np.minimum(self.dot_positions[:,1] + self.phi_velocity * dt, np.pi)
-                self.theta_velocity -= 2.0 * dt
+                self.dot_positions[:,1] = np.maximum(self.dot_positions[:,1] + self.phi_velocity * dt, 0.0)
                 self.color.a = min(self.color.a + 0.4 * dt, 0.6)
+                self.phi_velocity -= 2.0 * dt
 
                 # update cloud scale
-                new_scale = max(self.cloud_scale.x * 0.98, AnimatedCursor.drawing_cloud_scale)
+                new_scale = max(self.cloud_scale.x * 0.95, AnimatedCursor.drawing_cloud_scale)
                 self.cloud_scale.x = new_scale
                 self.cloud_scale.y = new_scale
+            elif self.is_in_control_state():
+                self.dot_positions[:,0] = self.dot_positions[:,0] + self.dot_velocities[:,0] * dt * 2.0
+                self.dot_positions[:,1] = np.sin(np.pi / 3.0 * (np.arange(len(self.dot_positions)) - 2.0 * np.pi / len(self.dot_positions))) * np.pi / 16.0
+                self.cloud_positions = self.cloud_positions + self.cloud_velocities * dt
             else:
-                if self.is_in_control_state():
-                    self.radius_proportion = AnimatedCursor.drawing_radius_proportion
-                else:
-                    self.radius_proportion = AnimatedCursor.normal_radius_proportion
-
-                self.dot_positions = self.dot_positions + self.dot_velocities * dt * (2.0 if self.is_in_control_state() else 1.0)
+                self.dot_positions = self.dot_positions + self.dot_velocities * dt
                 self.cloud_positions = self.cloud_positions + self.cloud_velocities * dt
 
             if not self.is_in_control_state() and self.cloud_scale.x < AnimatedCursor.normal_cloud_scale:
@@ -186,9 +201,17 @@ class AnimatedCursor(InstructionGroup):
         self.update_dot_positions()
         self.update_cloud_positions()
 
-    def is_in_control_state(self):
-        """Returns if the state is currently DRAWING or EDITING."""
-        return self.state in [AnimatedCursor.DRAWING, AnimatedCursor.EDITING]
+    def is_in_control_state(self, state=None):
+        """Returns if the state is currently DRAWING or EDITING. If `state` is
+        not None, computes the control status of that state."""
+        return (state if state is not None else self.state) in [AnimatedCursor.DRAWING, AnimatedCursor.EDITING]
+
+    def set_hsv(self, hsv):
+        """Sets the given HSV on all colors associated with this cursor."""
+        for color in [self.color] + self.dot_colors:
+            old_alpha = color.a
+            color.hsv = hsv
+            color.a = old_alpha
 
     def handle_change_state(self):
         """Updates the dot positions given that the last state is different."""
@@ -197,10 +220,18 @@ class AnimatedCursor(InstructionGroup):
             self.dot_positions[:,0] = np.linspace(0.0, np.pi * 2, AnimatedCursor.num_dots, endpoint=False)
             self.dot_positions[:,1] = np.pi / 3.0
             self.theta_velocity = 0.1
-        elif self.is_in_control_state():
-            self.phi_velocity = 1.0
+            self.phi_velocity = -0.5
         elif self.state == AnimatedCursor.NORMAL and self.last_state == AnimatedCursor.HOLDING:
             self.theta_velocity = 0.0
             self.phi_velocity = 0.0
             self.color.a = AnimatedCursor.normal_alpha
+        elif not self.is_in_control_state() and self.is_in_control_state(self.last_state):
+            self.shadow_color.a = AnimatedCursor.normal_shadow_alpha
+            self.set_hsv(self.normal_hsv)
+        elif self.state == AnimatedCursor.DRAWING and not self.is_in_control_state(self.last_state):
+            self.shadow_color.a = AnimatedCursor.drawing_shadow_alpha
+            self.set_hsv(self.drawing_hsv)
+        elif self.state == AnimatedCursor.EDITING and not self.is_in_control_state(self.last_state):
+            self.shadow_color.a = AnimatedCursor.drawing_shadow_alpha
+            self.set_hsv(self.editing_hsv)
         self.last_state = self.state

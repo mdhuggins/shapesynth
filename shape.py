@@ -212,7 +212,7 @@ class Shape(InstructionGroup):
         color.a = 0.2
         self.colors.append(color)
         duration = 4.0
-        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 10.0)), KFAnim((0.0, 0.4), (duration, 0.0)))
+        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 8.0)), KFAnim((0.0, 0.4), (duration, 0.0)))
         self.insert(self.shadow_index, new_circle)
         self.insert(self.shadow_index, color)
         self.insert(self.shadow_index, BindTexture(source='res/blur_circle.png'))
