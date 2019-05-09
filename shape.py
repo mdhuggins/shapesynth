@@ -215,12 +215,8 @@ class Shape(InstructionGroup):
         self.ps.emitter_x = 0.0
         self.ps.emitter_y = 0.0
         self.ps.speed = 100.0 * np.sqrt(self.area / 7000.0)
-        # self.ps.speed /= (0.3 + self.center[1] * 3)
-        # self.ps.life_span *= (1 + self.center[1])
-        # self.ps.max_num_particles = 300.0 * (1 - self.center[1])
         self.ps.radial_acceleration = -self.ps.speed * 0.7
         r, g, b, a = self.ps.start_color
-        # self.ps.start_color = (r, g, b, 1.0 - self.center[1] / 2.0)
 
     def on_note(self, pitch, velocity, dur):
         """Called when the ShapeSynth plays a note."""
