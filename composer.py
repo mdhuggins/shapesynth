@@ -147,7 +147,7 @@ class Composer(object):
     Generates music for a single instrument.
     """
 
-    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, velocity_level=0.0, velocity_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, arpeggio_preference=0.5, update_interval=4):
+    def __init__(self, sched, mixer, note_factory, pitch_level=0.0, pitch_variance=0.0, velocity_level=0.0, velocity_variance=0.0, complexity=0.0, harmonic_obedience=0.0, bass_preference=0.0, arpeggio_preference=0.5, update_interval=4, on_note=None):
         """
         Initializes a Composer that uses the given note factory to create note
         generators.
@@ -171,6 +171,8 @@ class Composer(object):
             the bass note of the harmony
         update_interval: the number of beats' worth of music that should be
             generated at a time
+        on_note: a function to be called when the composer plays a new note,
+            taking parameters pitch, velocity, duration
         """
         self.sched = sched
         self.mixer = mixer
@@ -184,6 +186,8 @@ class Composer(object):
         self.bass_preference = bass_preference
         self.arpeggio_preference = arpeggio_preference
         self.update_interval = update_interval
+        self.on_note = on_note
+
         self.playing = False
         self.measure_stack = [] # Will contain lists of commands
         self.queued_measures = [] # Measures to play in the future
@@ -307,6 +311,9 @@ class Composer(object):
             del self.prep_notes[note_params]
         else:
             self.prep_notes[note_params] = (note_gen, count - 1)
+
+        if self.on_note is not None:
+            self.on_note(*note_params)
 
     def generate_note_sequence(self, last_note=None, last_rhythm=None):
         """

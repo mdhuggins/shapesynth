@@ -66,7 +66,7 @@ class Shape(InstructionGroup):
         self.curve.width = 3.0
         self.add(self.curve)
         self.add(PopMatrix())
-        
+
         self.shadow_reenable_time = 0
         self.colors = [self.fill_color, self.stroke_color]
         self.shadow_anims = {}
@@ -176,7 +176,6 @@ class Shape(InstructionGroup):
         gain = np.clip(self.area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
 
         self.synth = ShapeSynth(self.center[0], self.center[1], gain, self.roughness)
-        self.synth.on_note = self.on_note
 
     def make_composer(self, sched, mixer, start=True):
         """
@@ -194,6 +193,7 @@ class Shape(InstructionGroup):
         self.composer.velocity_level = 0.5
         self.composer.velocity_variance = self.center[0] * (1 - self.center[0])
         self.composer.update_callback = self.update_color
+        self.composer.on_note = self.on_note
 
         if start:
             self.composer.start()
