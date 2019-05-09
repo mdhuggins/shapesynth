@@ -37,6 +37,7 @@ class Shape(InstructionGroup):
         self.points = points
         self.palette = palette
         self.hsv = (0, 1, 1)
+        self.has_initial_color = False
         self.shadow_index = len(self.children)
         self.color_frozen = False
         self.color_anim = None
@@ -73,7 +74,6 @@ class Shape(InstructionGroup):
 
         self.make_synth()
         self.make_composer(sched, mixer)
-        self.update_color(animated=False)
 
     def set_points(self, points):
         """Takes the given numpy nx2 array of points and sets the shape's points
@@ -253,13 +253,21 @@ class Shape(InstructionGroup):
         """Controls whether the shape color is allowed to change."""
         self.color_frozen = flag
 
-    def update_color(self, animated=True):
+    def update_color(self):
         """Called when the composer generates new notes."""
         if self.color_frozen: return
         if self.color_anim is not None: return
 
         new_hsv = self.palette.new_color(self.composer.pitch_level)
-        self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0 if animated else 0.0, *new_hsv)))
+        if not self.has_initial_color:
+            # Don't animate the first time
+            for color in self.colors:
+                old_a = color.a
+                color.hsv = new_hsv
+                color.a = old_a
+            self.has_initial_color = True
+        else:
+            self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0, *new_hsv)))
         self.hsv = new_hsv
 
 SHAPE_CLOSE_THRESHOLD = 40
