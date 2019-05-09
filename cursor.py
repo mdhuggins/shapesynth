@@ -66,7 +66,7 @@ class AnimatedCursor(InstructionGroup):
         self.shadow_color.a = AnimatedCursor.normal_shadow_alpha
         shadow_size = self.dim * 4.0
         self.add(self.shadow_color)
-        self.shadow = Rectangle(pos=(-shadow_size / 2.0, -shadow_size / 2.0), size=(shadow_size, shadow_size), source='res/blur_circle_more.png')
+        self.shadow = Rectangle(pos=(-shadow_size / 2.0, -shadow_size / 2.0), size=(shadow_size, shadow_size), source='res/blur_circle.png')
         self.add(self.shadow)
 
         self.add(self.color)
@@ -86,7 +86,7 @@ class AnimatedCursor(InstructionGroup):
             velocity_range = 0.8
             cloud_velocities.append((np.random.uniform(-velocity_range, velocity_range), np.random.uniform(-velocity_range, velocity_range)))
 
-            cloud = Rectangle(pos=(-cloud_size / 2.0, -cloud_size / 2.0), size=(cloud_size, cloud_size), source='res/blur_circle_more.png')
+            cloud = Rectangle(pos=(-cloud_size / 2.0, -cloud_size / 2.0), size=(cloud_size, cloud_size), source='res/blur_circle.png')
             self.add(cloud)
             self.clouds.append(cloud)
 
