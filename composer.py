@@ -313,7 +313,9 @@ class Composer(object):
             self.prep_notes[note_params] = (note_gen, count - 1)
 
         if self.on_note is not None:
-            self.on_note(*note_params)
+            pitch, velocity, dur = note_params
+            dur_sec = self.sched.tempo_map.tick_to_time(tick + dur) - self.sched.tempo_map.tick_to_time(tick)
+            self.on_note(pitch, velocity, dur_sec)
 
     def generate_note_sequence(self, last_note=None, last_rhythm=None):
         """

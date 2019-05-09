@@ -9,6 +9,7 @@ from kivy.core.image import Image
 from kivy.graphics import Color, Line, Mesh, Translate, Scale, BindTexture, Rotate
 from kivy.graphics.instructions import InstructionGroup
 from kivy.clock import Clock as kivyClock
+from common.kivyparticle import ParticleSystem
 
 import numpy as np
 from scipy.spatial import Delaunay
@@ -20,6 +21,8 @@ from composer import *
 from synth.shape_synth import *
 from gesture import HoldGesture
 from color import ColorPalette
+
+import colorsys
 
 class Shape(InstructionGroup):
     """
@@ -50,6 +53,10 @@ class Shape(InstructionGroup):
         self.add(PushMatrix())
         self.translate = Translate(*self.screen_center)
         self.add(self.translate)
+
+        self.ps = ParticleSystem('res/particle_explosion/particle.pex')
+        self.add(self.ps)
+
         self.add(self.rotation)
         self.scale = Scale(1.0, 1.0)
         self.add(self.scale)
@@ -74,6 +81,7 @@ class Shape(InstructionGroup):
 
         self.make_synth()
         self.make_composer(sched, mixer)
+        self.update_particle_system()
 
     def set_points(self, points):
         """Takes the given numpy nx2 array of points and sets the shape's points
@@ -126,6 +134,7 @@ class Shape(InstructionGroup):
         self.make_shape_properties()
         self.make_synth()
         self.make_composer(self.composer.sched, self.composer.mixer, was_on)
+        self.update_particle_system()
 
     def make_shape_properties(self):
         """
@@ -198,21 +207,43 @@ class Shape(InstructionGroup):
         if start:
             self.composer.start()
 
+    def update_particle_system(self):
+        """
+        Updates the particle system's properties based on the current shape
+        location and size.
+        """
+        self.ps.emitter_x = 0.0
+        self.ps.emitter_y = 0.0
+        self.ps.speed = 100.0 * np.sqrt(self.area / 7000.0)
+        # self.ps.speed /= (0.3 + self.center[1] * 3)
+        # self.ps.life_span *= (1 + self.center[1])
+        # self.ps.max_num_particles = 300.0 * (1 - self.center[1])
+        self.ps.radial_acceleration = -self.ps.speed * 0.7
+        r, g, b, a = self.ps.start_color
+        # self.ps.start_color = (r, g, b, 1.0 - self.center[1] / 2.0)
+
     def on_note(self, pitch, velocity, dur):
         """Called when the ShapeSynth plays a note."""
         if self.color_frozen: return
-        if self.time < self.shadow_reenable_time: return
 
         center = ((self.min_x + self.max_x) / 2.0, (self.min_y + self.max_y) / 2.0)
         dim = max(self.max_x - self.min_x, self.max_y - self.min_y) * 2.5
 
+        self.ps.start()
+        def stop(_):
+            self.ps.stop()
+        kivyClock.schedule_once(stop, 0.4)
+
+        if self.time < self.shadow_reenable_time: return
+
         new_circle = Rectangle(pos=(center[0] - dim / 2, center[1] - dim / 2), size=(dim, dim))
         #new_circle = CEllipse(cpos=center, csize=(dim, dim), texture=tex)
         color = Color(hsv=self.fill_color.hsv)
-        color.a = 0.2
+        color.a = 0.3
         self.colors.append(color)
-        duration = 4.0
-        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (duration, dim * 8.0)), KFAnim((0.0, 0.4), (duration, 0.0)))
+        circle_duration = min(max(2.0 * dur, 2.0), 8.0)
+        final_size = dim * (2.0 + 8.0 * (self.center[1] + 0.4) / 1.8)
+        self.shadow_anims[(new_circle, color)] = (self.time, KFAnim((0.0, dim), (circle_duration, final_size)), KFAnim((0.0, color.a), (circle_duration, 0.0)))
         self.insert(self.shadow_index, new_circle)
         self.insert(self.shadow_index, color)
         self.insert(self.shadow_index, BindTexture(source='res/blur_circle.png'))
@@ -269,6 +300,11 @@ class Shape(InstructionGroup):
         else:
             self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0, *new_hsv)))
         self.hsv = new_hsv
+
+        if self.ps is not None:
+            r, g, b = colorsys.hsv_to_rgb(*self.hsv)
+            self.ps.start_color = (r, g, b, 0.4)
+            self.ps.end_color = (r, g, b, 0.0)
 
 SHAPE_CLOSE_THRESHOLD = 40
 MAX_DISTANCE_THRESHOLD = 80
