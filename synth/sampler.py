@@ -162,6 +162,7 @@ class Sampler(object):
 
         self._coords = coords
         self.mix = [0,0,0,0]  # Bass, Cello, Piano, Glock
+        self.swell_factor = .001  # What percentage of the envelope is attack?
         self.duration = 0
         self.update_mix()
 
@@ -199,6 +200,9 @@ class Sampler(object):
 
         norm = bass + cello + piano + glock
 
+        # Swell
+        self.swell_factor = (y + (1-x))/4 if x < 0.5 < y else .001
+
         # Duration
         self.duration = 2*(bass) + 10*(cello) + 3*(piano) + 2*(glock)
         self.duration /= (bass) + (cello) + (piano) + (glock)
@@ -229,8 +233,11 @@ class Sampler(object):
                 else: # Just right
                     gen_spectra[new_bins[i] - bin_radius:new_bins[i] + bin_radius + 1, :] += spectrum * mix_coef
 
+        swell_frames = int(self.duration*self.swell_factor*Audio.sample_rate)
+        release_frames = Audio.sample_rate
+        sustain_frames = int(self.duration*Audio.sample_rate) - release_frames - swell_frames
 
-        env = np.concatenate((np.linspace(0,1,Audio.sample_rate * 0.02), np.ones(int(round(self.duration-1.02)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
+        env = np.concatenate((np.linspace(0,1,swell_frames), np.ones(sustain_frames), np.linspace(1,0, release_frames)))
 
         # Crop spectra
         gen_spectra = gen_spectra[:,:1+np.ceil(len(env)/self.hop_size).astype('int')]
