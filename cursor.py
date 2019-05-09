@@ -27,7 +27,13 @@ class AnimatedCursor(InstructionGroup):
     DRAWING = 'drawing'
     EDITING = 'editing'
 
-    def __init__(self, source, normal_hsv=(0.5, 0.7, 0.8), drawing_hsv=(0.5, 0.7, 0.8), editing_hsv=(0.5, 0.7, 0.8)):
+    def __init__(self, source, dim, normal_hsv=(0.5, 0.7, 0.8), drawing_hsv=(0.5, 0.7, 0.8), editing_hsv=(0.5, 0.7, 0.8)):
+        """
+        source - a function that, when called, returns a new cursor point or None.
+        dim - the average size of the cursor
+        (normal/drawing/editing)_hsv - an HSV tuple for the color of the cursor
+            at each state
+        """
         super(AnimatedCursor, self).__init__()
 
         self.normal_hsv = normal_hsv
@@ -46,11 +52,13 @@ class AnimatedCursor(InstructionGroup):
         self.phi_velocity = 0.0
         self.radius_proportion = AnimatedCursor.normal_radius_proportion
 
-        self.dim = 120.0
+        self.dim = dim
         self.add(PushMatrix())
         self.translate = Translate(0, 0)
-        self.scale = Scale(1)
         self.add(self.translate)
+
+        self.add(PushMatrix())
+        self.scale = Scale(1)
         self.add(self.scale)
 
         # Shadow
@@ -85,7 +93,8 @@ class AnimatedCursor(InstructionGroup):
         self.cloud_positions = np.array(cloud_positions)
         self.cloud_velocities = np.array(cloud_velocities)
 
-        self.add(PopMatrix())
+        self.add(PopMatrix()) # pop cloud scale
+        self.add(PopMatrix()) # pop overall scale
         self.back_translate = Translate(0, 0)
         self.add(self.back_translate)
 
@@ -121,6 +130,7 @@ class AnimatedCursor(InstructionGroup):
             new_scale = 0.5 + np.sqrt(pos[2]) * (1.5 - 0.5)
             self.scale.x = new_scale
             self.scale.y = new_scale
+            self.set_hsv((self.normal_hsv[0], 1 - pos[2], self.normal_hsv[2]))
         self.translate.xy = pos[0:2]
 
     def set_visible(self, visible):
@@ -164,7 +174,7 @@ class AnimatedCursor(InstructionGroup):
     def on_update(self, dt):
         """Updates the animated dots' positions."""
         pos = self.source()
-        self.set_visible(pos is not None and (len(pos) <= 2 or pos[2] <= 0.45 or pos[1] >= 0.1))
+        self.set_visible(pos is not None and (len(pos) <= 2 or pos[2] <= 0.4 or pos[1] >= 0.1))
 
         if not self.is_visible:
             return

@@ -327,7 +327,7 @@ class ShapeCreator(InstructionGroup):
                 self.accepting_points = False
                 self.smooth_shape()
                 self.on_complete(self.points)
-            elif dist < SHAPE_CLOSE_THRESHOLD / 2 and self.max_distance <= MAX_DISTANCE_THRESHOLD and dist <= self.max_distance and len(self.points) > 15:
+            elif dist < SHAPE_CLOSE_THRESHOLD / 2 and self.max_distance <= MAX_DISTANCE_THRESHOLD and dist <= self.max_distance and len(self.points) > 25:
                 self.accepting_points = False
                 self.on_complete([])
             elif dist > self.max_distance:
@@ -376,7 +376,7 @@ class ShapeCreator(InstructionGroup):
         # Handle new points
         if self.accepting_points:
             new_pos = self.source()
-            if new_pos is not None and ((len(new_pos) > 2 and new_pos[2] > 0.7) or len(self.points) > 800):
+            if new_pos is not None and ((len(new_pos) > 2 and (new_pos[2] > 0.7 or new_pos[1] <= 0.1)) or len(self.points) > 800):
                 # The user stopped drawing - cancel
                 self.accepting_points = False
                 self.on_complete([])

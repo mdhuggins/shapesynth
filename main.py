@@ -81,27 +81,23 @@ class MainWidget(BaseWidget) :
         self.cursor_map = {}
         self.normal_hsv = (0.55, 0.7, 0.7)
         self.drawing_hsv = (0.5, 0.85, 0.98)
-        cursor_kwargs = {"normal_hsv": self.normal_hsv, "drawing_hsv": self.drawing_hsv}
+        cursor_kwargs = {} #{"normal_hsv": self.normal_hsv, "drawing_hsv": self.drawing_hsv}
 
         if USE_KINECT:
             self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel),
                              HoldGesture("create", self.get_right_pos, self.on_hold_gesture, self.is_in_front, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel)]
-            self.left_hand = AnimatedCursor(self.get_left_pos, **cursor_kwargs)
-            self.right_hand = AnimatedCursor(self.get_right_pos, **cursor_kwargs)
+            self.left_hand = AnimatedCursor(self.get_left_pos, 180.0, **cursor_kwargs)
+            self.right_hand = AnimatedCursor(self.get_right_pos, 180.0, **cursor_kwargs)
             self.cursors.add(self.left_hand)
             self.cursors.add(self.right_hand)
             self.cursor_map[self.get_left_pos] = self.left_hand
             self.cursor_map[self.get_right_pos] = self.right_hand
         else:
             self.gestures = [HoldGesture("create", self.get_touch_pos, self.on_hold_gesture, None, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel)]
-            self.cursor = AnimatedCursor(self.get_mouse_pos, **cursor_kwargs)
+            self.cursor = AnimatedCursor(self.get_mouse_pos, 120.0, **cursor_kwargs)
             self.cursors.add(self.cursor)
             Window.bind(mouse_pos=self.on_mouse_pos)
             self.cursor_map[self.get_touch_pos] = self.cursor
-
-        # Create cursors
-        self.margin = np.zeros(2)
-        self.window_size = [Window.width - 2 * self.margin[0], Window.height - 2 * self.margin[1]]
 
         self.palette = ColorPalette()
         self.shapes = []
@@ -210,13 +206,16 @@ class MainWidget(BaseWidget) :
         from 0 to 1 using the scale_point function.
         """
         scaled = scale_point(kinect_pt, kKinectRange)
-        return np.concatenate([scaled[:2] * self.window_size + self.margin, scaled[2:]])
+        return np.concatenate([scaled[:2] * np.array([Window.width, Window.height]), scaled[2:]])
 
-    def is_in_front(self, point, threshold=0.3):
+    def is_in_front(self, point, threshold=0.4):
         """
         Returns True if the point is outside an ellipsoid that is at a z-value
         of `threshold` for most of the interactive space.
         """
+        if point[1] / Window.height <= 0.1:
+            return False
+
         val = point[0] ** 2 / (Window.width * 1.5) ** 2 + point[1] ** 2 / (Window.height * 1.5) ** 2 + (1.0 - point[2]) ** 2 / (1.0 - threshold) ** 2
         #if val < 1.0:
         #    print(point)

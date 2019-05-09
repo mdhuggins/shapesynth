@@ -78,7 +78,7 @@ class HoldGesture(Gesture):
 
         # Check that position didn't move for self.hold_time
         delta = np.linalg.norm(self.original_pos - pos)
-        if delta < 16.0:
+        if delta < 25.0:
             self.recognizing = True
             if time.time() - self.start_time >= self.hold_time:
                 self.callback(self)
