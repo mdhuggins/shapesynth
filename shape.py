@@ -184,7 +184,7 @@ class Shape(InstructionGroup):
         vertices.
         """
         self.composer = Composer(sched, mixer, self.synth.make_note)
-        self.composer.pitch_level = np.sqrt(self.center[0] * 0.7)
+        self.composer.pitch_level = (1/16 + self.center[1]*(1-2*self.center[0])/8 + np.sqrt(self.center[0] * 0.7))*8/9
         self.composer.pitch_variance = (self.center[0] / 2.0) ** 2
         self.composer.complexity = self.roughness
         self.composer.harmonic_obedience = np.sqrt(1.0 - self.roughness)
