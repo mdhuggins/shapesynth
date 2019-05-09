@@ -32,8 +32,6 @@ class ShapeSynth(object):
 
         self.roughness = roughness
 
-        self.on_note = None
-
     def make_note(self, pitch, velocity, duration):
         """ Creates a generator to play a note.
 
@@ -42,8 +40,6 @@ class ShapeSynth(object):
         :param duration: in seconds
         :return: a generator
         """
-        if self.on_note is not None:
-            self.on_note(pitch, velocity, duration)
 
         # x = self.x
         # y = self.y
