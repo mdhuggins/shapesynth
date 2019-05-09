@@ -162,6 +162,7 @@ class Sampler(object):
 
         self._coords = coords
         self.mix = [0,0,0,0]  # Bass, Cello, Piano, Glock
+        self.swell_factor = .001  # What percentage of the envelope is attack?
         self.duration = 0
         self.update_mix()
 
@@ -199,6 +200,9 @@ class Sampler(object):
 
         norm = bass + cello + piano + glock
 
+        # Swell
+        self.swell_factor = (y + (1-x))/4 if x < 0.5 < y else .001
+
         # Duration
         self.duration = 2*(bass) + 10*(cello) + 3*(piano) + 2*(glock)
         self.duration /= (bass) + (cello) + (piano) + (glock)
@@ -229,8 +233,11 @@ class Sampler(object):
                 else: # Just right
                     gen_spectra[new_bins[i] - bin_radius:new_bins[i] + bin_radius + 1, :] += spectrum * mix_coef
 
+        swell_frames = int(self.duration*self.swell_factor*Audio.sample_rate)
+        release_frames = Audio.sample_rate
+        sustain_frames = int(self.duration*Audio.sample_rate) - release_frames - swell_frames
 
-        env = np.concatenate((np.linspace(0,1,Audio.sample_rate * 0.02), np.ones(int(round(self.duration-1.02)*Audio.sample_rate)), np.linspace(1,0,Audio.sample_rate)))
+        env = np.concatenate((np.linspace(0,1,swell_frames), np.ones(sustain_frames), np.linspace(1,0, release_frames)))
 
         # Crop spectra
         gen_spectra = gen_spectra[:,:1+np.ceil(len(env)/self.hop_size).astype('int')]
@@ -248,156 +255,6 @@ class Sampler(object):
         #hash = (self.duration, self.coords, pitch)
         return SpectraGenerator(self.gain * gain, gen_spectra, self.hop_size, env)
 
-class DaemonClientGenerator(object):
-    """
-    Requests the sampler daemon to produce frames, then plays the resulting
-    sound when generate() is called. If the daemon has not yet returned the
-    sound, skips frames until the daemon returns.
-    """
-
-    def __init__(self, pool, *params):
-        self.pool = pool
-        self.pool.request(id(self), params)
-        self.frames = None
-        self.frame = 0
-
-    def generate(self, num_frames, num_channels):
-        if self.frames is None:
-            self.frames = self.pool.get(id(self))
-
-        if self.frames is None:
-            print("Can't play yet - no frames loaded!")
-            return np.zeros(num_frames * num_channels), True
-
-        output = self.frames[self.frame:self.frame+num_frames]
-        actual_num_frames = len(output) // num_channels
-        self.frame += actual_num_frames
-
-        # Pad if output is too short
-        padding = num_frames * num_channels - len(output)
-        if padding > 0:
-            output = np.append(output, np.zeros(padding))
-
-        return output, self.frame < len(self.frames)
-
-waveform_cache = {}
-
-class BufferedSpectraGenerator(object):
-    def __init__(self, gain, spectra, hop_size, env, hash):
-        self.gain = gain
-        self.spectra = spectra
-        self.hop_size = hop_size
-        self.env = env
-
-        # hops = 1
-        # self.frames = istft(self.spectra[:, :hops], self.hop_size)
-        # self.frames = np.fft.irfft(self.spectra[:,0])#:self.hops+hops])
-        # self.frames /= np.hanning(len(self.frames))
-
-
-        # hann = np.hanning(len(self.frames))
-        #
-        # self.frames *= hann
-        # self.frames = self.frames[:len(self.frames) // 2]
-
-        # TODO Apply envelope
-        # self.env = np.concatenate((self.env, np.zeros(len(self.frames)-len(self.env))))
-
-        # State information
-        self.frame = 0  # Keep angle continuous between generate calls
-        self.hops = 0
-        self.playing = True
-
-        self.hash = hash
-
-        self.N = (self.spectra.shape[0] - 1) * 2
-        self.x = np.zeros((hop_size * (self.spectra.shape[1] - 1) + self.N,))
-
-        self.rendered_frame = self.hop_size//2
-
-        W = np.zeros_like(self.x)
-        for h in range(0, W.shape[0], hop_size):
-            sub_w = np.hanning(self.N)
-            apply_in_window(W, sub_w, h, True)
-
-        W = np.where(np.abs(W) < 0.001, 0.001, W)
-        self.W = W
-
-        if self.hash in waveform_cache:
-            print("cached!")
-            self.frames = waveform_cache[self.hash]
-            self.hops = self.spectra.shape[1]+1
-
-        self.istft_step_fn(10)
-
-        self.t = None
-
-    def istft_step_fn(self, hops=10):
-        if self.hops > self.spectra.shape[1]:
-            if self.hash not in waveform_cache:
-                print("added to cache")
-                waveform_cache[self.hash] = self.frames
-            return
-        for col in range(self.hops, min(self.spectra.shape[1], self.hops+hops)):
-            x_h = np.fft.irfft(self.spectra[:, col])
-            apply_in_window(self.x, x_h, col * self.hop_size, True)
-
-        self.frames = self.x / self.W
-        self.hops += hops
-        self.rendered_frame += self.hop_size*hops
-
-        # import matplotlib.pyplot as plt
-        # plt.plot(self.frames)
-        # plt.show()
-
-    def istft_step(self):
-        self.istft_step_fn()
-        # def f(s):
-        #     return s.istft_step_fn
-        # t = Thread(target=f(self))
-        # t.start()
-        # self.t = t
-
-
-    def note_off(self):
-        """ Stop playing.
-
-        :return: None
-        """
-        self.playing = False
-
-    def generate(self, num_frames, num_channels) :
-        # Add to buffer
-        if self.rendered_frame - self.frame < 2048 and (not self.t or not self.t.isAlive()):  # TODO
-            hops = 1 #np.ceil(num_frames/self.hop_size).astype('int')
-
-            self.istft_step()
-
-
-        # Get frames
-        # output = np.random.random(num_frames)
-        output = self.frames[self.frame:self.frame+num_frames]
-
-        # TODO apply envelope
-
-        # Check for end of buffer
-        actual_num_frames = len(output) // num_channels
-
-        self.frame += actual_num_frames
-
-        # Pad if output is too short
-        padding = num_frames * num_channels - len(output)
-        if padding > 0:
-            output = np.append(output, np.zeros(padding))
-
-        # return
-        contin = self.frame < len(self.env)
-        if not contin:
-            if self.hash not in waveform_cache:
-                print("added to cache")
-                waveform_cache[self.hash] = self.frames
-        return output * self.gain, contin
-
 class SpectraGenerator(object):
     def __init__(self, gain, spectra, hop_size, env):
         self.gain = gain
@@ -410,9 +267,7 @@ class SpectraGenerator(object):
         # Apply envelope
         env = np.concatenate((self.env, np.zeros(len(self.frames)-len(self.env))))
         self.frames *= env
-        #import matplotlib.pyplot as plt
-        #plt.plot(self.frames)
-        #plt.show()
+
         # State information
         self.frame = 0  # Keep angle continuous between generate calls
         self.playing = True
