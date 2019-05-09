@@ -208,7 +208,7 @@ class MainWidget(BaseWidget) :
         scaled = scale_point(kinect_pt, kKinectRange)
         return np.concatenate([scaled[:2] * np.array([Window.width, Window.height]), scaled[2:]])
 
-    def is_in_front(self, point, threshold=0.4):
+    def is_in_front(self, point, threshold=0.3):
         """
         Returns True if the point is outside an ellipsoid that is at a z-value
         of `threshold` for most of the interactive space.
