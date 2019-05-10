@@ -75,8 +75,7 @@ class MainWidget(BaseWidget) :
         self.mouse_pos = None
         self.shape_scale = 500.0 / Window.width # After drawing shapes, transform by this scale factor
 
-        self.backgrounds = [CloudBackground(5, self.palette, size_range=(800, 1200), alpha_range=(0.4, 0.7)),
-                            CloudBackground(5, self.palette, size_range=(400, 700), alpha_range=(0.7, 1))]
+        self.backgrounds = [CloudBackground(5, self.palette, size_range=(400, 1200), alpha_range=(0.5, 1.0))]
         for bg in self.backgrounds:
             self.add_widget(bg)
 
