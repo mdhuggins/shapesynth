@@ -13,6 +13,7 @@ class ColorPalette(object):
         self.hue_average = 0.5
         self.hue_range = (0, 1)
         self.brightness_range = (0.7, 1)
+        self.process_harmony(Conductor.harmony)
 
     def process_harmony(self, harmony):
         """

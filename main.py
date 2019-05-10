@@ -26,6 +26,7 @@ from gesture import *
 from keyboard import *
 from color import *
 from cursor import AnimatedCursor
+from background import *
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -64,6 +65,8 @@ class MainWidget(BaseWidget) :
         Conductor.initialize(self.sched)
         Conductor.start()
 
+        self.palette = ColorPalette()
+
         # Set up kinect
         self.kinect = Kinect()
         self.kinect.add_joint(Kinect.kLeftHand)
@@ -71,6 +74,11 @@ class MainWidget(BaseWidget) :
         self.touch_pos = None
         self.mouse_pos = None
         self.shape_scale = 500.0 / Window.width # After drawing shapes, transform by this scale factor
+
+        self.backgrounds = [CloudBackground(5, self.palette, size_range=(800, 1200), alpha_range=(0.4, 0.7)),
+                            CloudBackground(5, self.palette, size_range=(400, 700), alpha_range=(0.7, 1))]
+        for bg in self.backgrounds:
+            self.add_widget(bg)
 
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
@@ -99,7 +107,6 @@ class MainWidget(BaseWidget) :
             Window.bind(mouse_pos=self.on_mouse_pos)
             self.cursor_map[self.get_touch_pos] = self.cursor
 
-        self.palette = ColorPalette()
         self.shapes = []
         self.shape_creator = None
         self.shape_editor = None
@@ -131,6 +138,8 @@ class MainWidget(BaseWidget) :
         for gesture in self.gestures:
             gesture.on_update()
 
+        for bg in self.backgrounds:
+            bg.on_update()
         self.interaction_anims.on_update()
         self.cursors.on_update()
         if len(self.label.text) == 0:
