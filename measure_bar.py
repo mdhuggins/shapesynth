@@ -26,11 +26,9 @@ class MeasureBar(InstructionGroup):
         self.palette = palette
         self.scheduler = scheduler
 
-        # self.hsv = (0, 1, 1)
         self.hsv = (0,0,1)
-        self.front_color_anim = None
-        self.back_color_anim = None
 
+        # Back bar
         self.back_color = Color(hsv=self.hsv)
         self.back_alpha = 0.2
         self.back_color.a =self.back_alpha
@@ -39,6 +37,10 @@ class MeasureBar(InstructionGroup):
         self.back_line = Rectangle(pos=(0, 0), size=(self.x_max, self.height))
         self.add(self.back_line)
 
+        self.back_color_anim = None
+
+
+        # Third bar
         self.third_color = Color(hsv=self.hsv)
         self.third_alpha = 0
         self.third_color.a = self.third_alpha
@@ -49,8 +51,9 @@ class MeasureBar(InstructionGroup):
 
         self.third_line_anim = KFAnim((0,0.3), (Conductor.ticks_per_measure/4, 0))
         self.change_third_line_anim = KFAnim((0,0.8), (Conductor.ticks_per_measure/4, 0))
-        self.changing = 0
+        self.changing = 0  # 0 not changing, 1 changing, 2 just changed
 
+        # Front bar
         self.front_color = Color(hsv=self.hsv)
         self.front_alpha = 0.3
         self.front_color.a = self.front_alpha
@@ -59,6 +62,9 @@ class MeasureBar(InstructionGroup):
         self.front_line = Rectangle(pos=(0, 0), size=(self.x_max * self.progress, self.height))
         self.add(self.front_line)
 
+        self.front_color_anim = None
+
+        # Front/back alpha anim
         self.alpha_increase = 0.5
         self.alpha_anim = None
 
@@ -66,7 +72,14 @@ class MeasureBar(InstructionGroup):
 
 
     def update_size(self, x_max, height=None):
-        pass
+        self.x_max = x_max
+        if height:
+            self.height = height
+
+        self.front_line.size = (self.x_max * self.progress, self.height)
+        self.third_line.size = (self.x_max, self.height)
+        self.back_line.size = (self.x_max, self.height)
+
 
     def set_progress(self, p):
         assert 0 <= p <= 1
@@ -74,7 +87,6 @@ class MeasureBar(InstructionGroup):
         self.front_line.size=(self.x_max * self.progress, self.height)
 
     def update_color(self, animated=True, init=False):
-        print("update color")
         """Called when a new harmony is chosen"""
         # if self.front_color_anim is not None: return
 
@@ -172,7 +184,6 @@ class MeasureBar(InstructionGroup):
             self.changing = 2
 
         if self.changing == 2:
-            print("change anim")
             self.third_color.a = self.change_third_line_anim.eval(tick_progress)
 
             if not self.change_third_line_anim.is_active(tick_progress):

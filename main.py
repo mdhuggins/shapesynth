@@ -106,6 +106,10 @@ class MainWidget(BaseWidget) :
                   text_size=(Window.width, 200.0))
         self.add_widget(self.label)
 
+        # In case the window size changes
+        self.last_width = Window.width
+        self.last_height = Window.height
+
     def on_request_close(self, *args):
         Conductor.stop()
         for shape in self.shapes:
@@ -114,6 +118,17 @@ class MainWidget(BaseWidget) :
         return False
 
     def on_update(self) :
+        # Check if window changed size
+        if Window.height != self.last_height or Window.width != self.last_width:
+            print("Window size changed!")
+
+            self.last_width = Window.width
+            self.last_height = Window.height
+
+            # Update components
+            self.measure_bar.update_size(Window.width, int(Window.height*0.02))
+
+
         self.kinect.on_update()
         norm_right = self.get_right_pos(screen=False)
         norm_left = self.get_left_pos(screen=False)
