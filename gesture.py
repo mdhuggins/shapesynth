@@ -42,7 +42,7 @@ class HoldGesture(Gesture):
     a fixed period of time.
     """
 
-    def __init__(self, identifier, source, callback, hit_test=None, hold_time=0.75):
+    def __init__(self, identifier, source, callback, hit_test=None, hold_time=1.0, on_trigger=None, on_cancel=None):
         """
         Creates a hold gesture. hit_test may be a function taking a point and
         returning a boolean indicating whether the point is within the region
@@ -54,6 +54,8 @@ class HoldGesture(Gesture):
         self.original_pos = None
         self.hold_time = hold_time
         self.recognizing = False
+        self.on_trigger = on_trigger
+        self.on_cancel = on_cancel
 
     def on_update(self):
         if not self.enabled: return
@@ -62,6 +64,8 @@ class HoldGesture(Gesture):
 
         # Reset if no position available, or not in desired window
         if pos is None or (self.hit_test is not None and not self.hit_test(pos)):
+            if self.recognizing and self.on_cancel is not None:
+                self.on_cancel(self)
             self.original_pos = None
             self.start_time = None
             self.recognizing = False
@@ -74,14 +78,18 @@ class HoldGesture(Gesture):
 
         # Check that position didn't move for self.hold_time
         delta = np.linalg.norm(self.original_pos - pos)
-        if delta < 16.0:
+        if delta < 25.0:
             self.recognizing = True
             if time.time() - self.start_time >= self.hold_time:
                 self.callback(self)
                 self.start_time = None
                 self.original_pos = None
                 self.recognizing = False
+            elif time.time() - self.start_time >= self.hold_time / 4.0 and self.on_trigger is not None:
+                self.on_trigger(self)
         else:
+            if self.recognizing and self.on_cancel is not None:
+                self.on_cancel(self)
             self.recognizing = False
             self.original_pos = None
             self.start_time = None

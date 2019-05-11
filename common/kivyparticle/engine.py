@@ -11,8 +11,11 @@ from .utils import random_variance, random_color_variance
 from kivy.properties import NumericProperty, BooleanProperty, ListProperty, StringProperty, ObjectProperty
 
 import sys
+sys.path.insert(0, "../..")
 import os
 import math
+
+from common.gfxutil import InstructionGroup
 
 __all__ = ['EMITTER_TYPE_GRAVITY', 'EMITTER_TYPE_RADIAL', 'Particle', 'ParticleSystem']
 
@@ -45,48 +48,8 @@ class Particle(object):
     rotation_delta, scale_delta = 0, 0
 
 
-class ParticleSystem(Widget):
-    max_num_particles = NumericProperty(200)
-    life_span = NumericProperty(2)
-    texture = ObjectProperty(None)
-    texture_path = StringProperty(None)
-    life_span_variance = NumericProperty(0)
-    start_size = NumericProperty(16)
-    start_size_variance = NumericProperty(0)
-    end_size = NumericProperty(16)
-    end_size_variance = NumericProperty(0)
-    emit_angle = NumericProperty(0)
-    emit_angle_variance = NumericProperty(0)
-    start_rotation = NumericProperty(0)
-    start_rotation_variance = NumericProperty(0)
-    end_rotation = NumericProperty(0)
-    end_rotation_variance = NumericProperty(0)
-    emitter_x_variance = NumericProperty(100)
-    emitter_y_variance = NumericProperty(100)
-    gravity_x = NumericProperty(0)
-    gravity_y = NumericProperty(0)
-    speed = NumericProperty(0)
-    speed_variance = NumericProperty(0)
-    radial_acceleration = NumericProperty(100)
-    radial_acceleration_variance = NumericProperty(0)
-    tangential_acceleration = NumericProperty(0)
-    tangential_acceleration_variance = NumericProperty(0)
-    max_radius = NumericProperty(100)
-    max_radius_variance = NumericProperty(0)
-    min_radius = NumericProperty(50)
-    rotate_per_second = NumericProperty(0)
-    rotate_per_second_variance = NumericProperty(0)
-    start_color = ListProperty([1., 1., 1., 1.])
-    start_color_variance = ListProperty([1., 1., 1., 1.])
-    end_color = ListProperty([1., 1., 1., 1.])
-    end_color_variance = ListProperty([1., 1., 1., 1.])
-    blend_factor_source = NumericProperty(770)
-    blend_factor_dest = NumericProperty(1)
-    emitter_type = NumericProperty(0)
-
-    update_interval = NumericProperty(1. / 30.)
-    _is_paused = BooleanProperty(False)
-
+class ParticleSystem(InstructionGroup):
+    
     def __init__(self, config, **kwargs):
         super(ParticleSystem, self).__init__(**kwargs)
         self.capacity = 0
@@ -96,6 +59,47 @@ class ParticleSystem(Widget):
         self.frame_time = 0.0
         self.num_particles = 0
 
+        self.max_num_particles = 200
+        self.life_span = 2
+        self.texture = None
+        self.texture_path = None
+        self.life_span_variance = 0
+        self.start_size = 16
+        self.start_size_variance = 0
+        self.end_size = 16
+        self.end_size_variance = 0
+        self.emit_angle = 0
+        self.emit_angle_variance = 0
+        self.start_rotation = 0
+        self.start_rotation_variance = 0
+        self.end_rotation = 0
+        self.end_rotation_variance = 0
+        self.emitter_x_variance = 100
+        self.emitter_y_variance = 100
+        self.gravity_x = 0
+        self.gravity_y = 0
+        self.speed = 0
+        self.speed_variance = 0
+        self.radial_acceleration = 100
+        self.radial_acceleration_variance = 0
+        self.tangential_acceleration = 0
+        self.tangential_acceleration_variance = 0
+        self.max_radius = 100
+        self.max_radius_variance = 0
+        self.min_radius = 50
+        self.rotate_per_second = 0
+        self.rotate_per_second_variance = 0
+        self.start_color = [1., 1., 1., 1.]
+        self.start_color_variance = [1., 1., 1., 1.]
+        self.end_color = [1., 1., 1., 1.]
+        self.end_color_variance = [1., 1., 1., 1.]
+        self.blend_factor_source = 770
+        self.blend_factor_dest = 1
+        self.emitter_type = 0
+
+        self.update_interval = 1. / 30.
+        self._is_paused = False
+
         if config is not None:
             self._parse_config(config)
         self.emission_rate = self.max_num_particles / self.life_span
@@ -103,10 +107,10 @@ class ParticleSystem(Widget):
         self.max_capacity = self.max_num_particles
         self._raise_capacity(self.initial_capacity)
 
-        with self.canvas.before:
-            Callback(self._set_blend_func)
-        with self.canvas.after:
-            Callback(self._reset_blend_func)
+        # with self.before:
+        #     Callback(self._set_blend_func)
+        # with self.after:
+        #     Callback(self._reset_blend_func)
 
         Clock.schedule_once(self._update, self.update_interval)
 
@@ -119,7 +123,7 @@ class ParticleSystem(Widget):
         if clear:
             self.num_particles = 0
             self.particles_dict = dict()
-            self.canvas.clear()
+            self.clear()
 
     def on_max_num_particles(self, instance, value):
         self.max_capacity = value
@@ -217,7 +221,9 @@ class ParticleSystem(Widget):
 
     def _update(self, dt):
         self._advance_time(dt)
+        self._set_blend_func(None)
         self._render()
+        self._reset_blend_func(None)
         if not self._is_paused:
             Clock.schedule_once(self._update, self.update_interval)
 
@@ -332,7 +338,7 @@ class ParticleSystem(Widget):
 
         for i in range(int(old_capacity - new_capacity)):
             try:
-                self.canvas.remove(self.particles_dict[self.particles.pop()]['rect'])
+                self.remove(self.particles_dict[self.particles.pop()]['rect'])
             except:
                 pass
 
@@ -386,15 +392,19 @@ class ParticleSystem(Widget):
             if particle not in self.particles_dict:
                 self.particles_dict[particle] = dict()
                 color = particle.color[:]
-                with self.canvas:
-                    self.particles_dict[particle]['color'] = Color(color[0], color[1], color[2], color[3])
-                    PushMatrix()
-                    self.particles_dict[particle]['translate'] = Translate()
-                    self.particles_dict[particle]['rotate'] = Rotate()
-                    self.particles_dict[particle]['rotate'].set(particle.rotation, 0, 0, 1)
-                    self.particles_dict[particle]['rect'] = Quad(texture=self.texture, points=(-size[0] * 0.5, -size[1] * 0.5, size[0] * 0.5, -size[1] * 0.5, size[0] * 0.5,  size[1] * 0.5, -size[0] * 0.5,  size[1] * 0.5))
-                    self.particles_dict[particle]['translate'].xy = (particle.x, particle.y)
-                    PopMatrix()
+                # with self.canvas:
+                self.particles_dict[particle]['color'] = Color(color[0], color[1], color[2], color[3])
+                self.add(self.particles_dict[particle]['color'])
+                self.add(PushMatrix())
+                self.particles_dict[particle]['translate'] = Translate()
+                self.add(self.particles_dict[particle]['translate'])
+                self.particles_dict[particle]['rotate'] = Rotate()
+                self.add(self.particles_dict[particle]['rotate'])
+                self.particles_dict[particle]['rotate'].set(particle.rotation, 0, 0, 1)
+                self.particles_dict[particle]['rect'] = Quad(texture=self.texture, points=(-size[0] * 0.5, -size[1] * 0.5, size[0] * 0.5, -size[1] * 0.5, size[0] * 0.5,  size[1] * 0.5, -size[0] * 0.5,  size[1] * 0.5))
+                self.add(self.particles_dict[particle]['rect'])
+                self.particles_dict[particle]['translate'].xy = (particle.x, particle.y)
+                self.add(PopMatrix())
             else:
                 self.particles_dict[particle]['rotate'].angle = particle.rotation
                 self.particles_dict[particle]['translate'].xy = (particle.x, particle.y)
