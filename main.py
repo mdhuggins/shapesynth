@@ -25,11 +25,8 @@ from shape import *
 from gesture import *
 from keyboard import *
 from color import *
-<<<<<<< HEAD
 from measure_bar import *
-=======
 from cursor import AnimatedCursor
->>>>>>> 31460dc5388dcdd234c2bbe7276d1ef11ef524f3
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
