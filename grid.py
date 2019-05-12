@@ -1,8 +1,5 @@
-from kivy.clock import Clock as kivyClock
 from kivy.graphics.instructions import InstructionGroup
-from kivy.graphics import Rectangle, Ellipse, Color, Fbo, ClearBuffers, ClearColor, Line, BindTexture, Translate, Scale
-from kivy.graphics import PushMatrix, PopMatrix, Scale, Callback
-from kivy.graphics.texture import Texture
+from kivy.graphics import Color, Line, Translate, PushMatrix, PopMatrix
 from kivy.core.window import Window
 from common.gfxutil import KFAnim
 
