@@ -62,13 +62,13 @@ class Shape(InstructionGroup):
         self.add(self.scale)
         self.back_translate = Translate(*(-self.screen_center))
         self.add(self.back_translate)
-        self.fill_color = Color(hsv=self.hsv)
+        self.fill_color = Color(*colorsys.hsv_to_rgb(*self.hsv))
         self.fill_color.a = 0.5
         self.add(self.fill_color)
         self.mesh = Mesh(mode='triangles')
         self.update_mesh()
         self.add(self.mesh)
-        self.stroke_color = Color(hsv=self.hsv)
+        self.stroke_color = Color(*self.fill_color.rgb)
         self.add(self.stroke_color)
         self.curve = Line(points=[coord for point in self.points for coord in point], segments=20 * len(self.points), loop=True)
         self.curve.width = 3.0
@@ -234,7 +234,7 @@ class Shape(InstructionGroup):
 
         new_circle = Rectangle(pos=(center[0] - dim / 2, center[1] - dim / 2), size=(dim, dim))
         #new_circle = CEllipse(cpos=center, csize=(dim, dim), texture=tex)
-        color = Color(hsv=self.fill_color.hsv)
+        color = Color(*self.fill_color.rgb)
         color.a = 0.3
         self.colors.append(color)
         circle_duration = min(max(2.0 * dur, 2.0), 8.0)
@@ -251,7 +251,7 @@ class Shape(InstructionGroup):
             new_color = anim.eval(self.time - start_time)
             for color in self.colors:
                 old_a = color.a
-                color.hsv = new_color
+                color.rgb = new_color
                 color.a = old_a
             if not anim.is_active(self.time - start_time):
                 self.color_anim = None
@@ -286,19 +286,19 @@ class Shape(InstructionGroup):
         if self.color_anim is not None: return
 
         new_hsv = self.palette.new_color(self.composer.pitch_level)
+        r, g, b = colorsys.hsv_to_rgb(*new_hsv)
         if not self.has_initial_color:
             # Don't animate the first time
             for color in self.colors:
                 old_a = color.a
-                color.hsv = new_hsv
+                color.rgb = (r, g, b)
                 color.a = old_a
             self.has_initial_color = True
         else:
-            self.color_anim = (self.time, KFAnim((0.0, *self.hsv), (1.0, *new_hsv)))
+            self.color_anim = (self.time, KFAnim((0.0, *self.fill_color.rgb), (1.0, r, g, b)))
         self.hsv = new_hsv
 
         if self.ps is not None:
-            r, g, b = colorsys.hsv_to_rgb(*self.hsv)
             self.ps.start_color = (r, g, b, 0.4)
             self.ps.end_color = (r, g, b, 0.0)
 
