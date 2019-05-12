@@ -291,6 +291,7 @@ class MainWidget(BaseWidget) :
         cursor = self.cursor_map[gesture.source]
         if gesture.identifier == "create":
             self.grid.set_grid_visible(True)
+            self.grid.make_target_animation(gesture.original_pos, gesture.hold_time)
         cursor.set_state(AnimatedCursor.HOLDING)
 
     def on_hold_gesture_cancel(self, gesture):
