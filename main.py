@@ -25,6 +25,7 @@ from shape import *
 from gesture import *
 from keyboard import *
 from color import *
+from measure_bar import *
 from cursor import AnimatedCursor
 from background import *
 
@@ -54,7 +55,8 @@ class MainWidget(BaseWidget) :
         self.audio = Audio(1, self.writer.add_audio)
         self.mixer = Mixer()
         self.mixer.set_gain(1)
-        self.tempo_map  = SimpleTempoMap(92)
+        self.bpm = 92
+        self.tempo_map  = SimpleTempoMap(self.bpm)
         self.sched = AudioScheduler(self.tempo_map)
         self.sched.set_generator(self.mixer)
 
@@ -110,6 +112,12 @@ class MainWidget(BaseWidget) :
         self.shape_creator = None
         self.shape_editor = None
 
+        self.interaction_anims = AnimGroup()
+        self.canvas.add(self.interaction_anims)
+
+        self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
+        self.canvas.add(self.measure_bar)
+
         # MIDI
         self.keyboard = Keyboard(self.on_chord_change)
 
@@ -117,6 +125,10 @@ class MainWidget(BaseWidget) :
                   pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
         self.add_widget(self.label)
+
+        # In case the window size changes
+        self.last_width = Window.width
+        self.last_height = Window.height
 
     def on_request_close(self, *args):
         Conductor.stop()
@@ -126,6 +138,17 @@ class MainWidget(BaseWidget) :
         return False
 
     def on_update(self) :
+        # Check if window changed size
+        if Window.height != self.last_height or Window.width != self.last_width:
+            print("Window size changed!")
+
+            self.last_width = Window.width
+            self.last_height = Window.height
+
+            # Update components
+            self.measure_bar.update_size(Window.width, int(Window.height*0.02))
+
+
         self.kinect.on_update()
 
         if USE_KINECT and not self.is_tracking():
@@ -139,6 +162,8 @@ class MainWidget(BaseWidget) :
 
         for bg in self.backgrounds:
             bg.on_update()
+
+        self.measure_bar.on_update()
         self.interaction_anims.on_update()
         self.cursors.on_update()
         if len(self.label.text) == 0:
@@ -157,6 +182,7 @@ class MainWidget(BaseWidget) :
             is_different = (harmony != Conductor.harmony)
             Conductor.harmony = harmony
             if is_different:
+                self.measure_bar.update_color()
                 for shape in self.shapes:
                     shape.composer.clear_notes()
                 self.label.text = ''
@@ -175,6 +201,7 @@ class MainWidget(BaseWidget) :
         new_harmony = [pitch % 12 for pitch in sorted(pitches)]
         if new_harmony != Conductor.harmony:
             Conductor.harmony = new_harmony
+            self.measure_bar.update_color()
             for shape in self.shapes:
                 shape.composer.clear_notes()
         self.label.text = ''
@@ -344,7 +371,7 @@ class MainWidget(BaseWidget) :
 
         self.label.text = ''
 
-# pass in which MainWidget to run as a command-line arg
+# pass in which MainWidget to run as a command-front_line arg
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         USE_KINECT = True if sys.argv[1].lower() in ['true', '1'] else False
