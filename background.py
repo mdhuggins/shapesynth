@@ -139,7 +139,7 @@ class CloudBackground(Widget):
         self.alpha_range = alpha_range
         while len(self.clouds) < self.num_clouds:
             self.make_cloud()
-        self.last_time = time.time() - np.random.uniform(2.0, 4.0)
+        self.last_time = time.time()
 
     def make_cloud(self, existing_cloud=None):
         pos = (np.random.uniform(self.margin, Window.width - self.margin), np.random.uniform(self.margin, Window.height - self.margin))
