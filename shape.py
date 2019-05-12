@@ -324,7 +324,7 @@ class ShapeCreator(InstructionGroup):
 
         self.points = []
         self.hsv = hsv
-        self.bg_color = Color(hsv=(0.6, 0.9, 0.3))
+        self.bg_color = Color(0, 0, 0)
         self.bg_color.a = 0.0
         self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.7))
         self.shape_alpha_anim = None
@@ -462,7 +462,7 @@ class ShapeEditor(InstructionGroup):
         self.shape = shape
 
         self.hsv = hsv
-        self.bg_color = Color(hsv=(0.6, 0.9, 0.3))
+        self.bg_color = Color(0, 0, 0)
         self.bg_color.a = 0.0
         self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.7))
         self.add(self.bg_color)
