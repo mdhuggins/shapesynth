@@ -10,10 +10,11 @@ from common.synth import *
 from common.clock import *
 from common.writer import *
 
-from kivy.graphics import Color, Line
+from kivy.graphics import Color, Line, Rectangle
 from kivy.graphics.instructions import InstructionGroup
 from kivy.clock import Clock as kivyClock
 from kivy.animation import Animation
+from kivy.uix.widget import Widget
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -75,12 +76,16 @@ class MainWidget(BaseWidget) :
         self.mouse_pos = None
         self.shape_scale = 500.0 / Window.width # After drawing shapes, transform by this scale factor
 
+        # TODO
+        self.game = Widget()
+        self.add_widget(self.game)
+
         self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
+        self.game.canvas.add(self.interaction_anims)
 
         # Set up hold gestures and cursors
         self.cursors = AnimGroup()
-        self.canvas.add(self.cursors)
+        self.game.canvas.add(self.cursors)
         self.cursor_map = {}
         self.normal_hsv = (0.55, 0.7, 0.7)
         self.drawing_hsv = (0.5, 0.85, 0.98)
@@ -108,10 +113,10 @@ class MainWidget(BaseWidget) :
         self.shape_editor = None
 
         self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
+        self.game.canvas.add(self.interaction_anims)
 
         self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
-        self.canvas.add(self.measure_bar)
+        self.game.canvas.add(self.measure_bar)
 
         # MIDI
         self.keyboard = Keyboard(self.on_chord_change)
@@ -119,7 +124,7 @@ class MainWidget(BaseWidget) :
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
                   pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
-        self.add_widget(self.label)
+        self.game.add_widget(self.label)
 
         # Splash
         self.splash_title = Label(text="ShapeSynth", valign='center', halign='center',
@@ -128,7 +133,7 @@ class MainWidget(BaseWidget) :
                                   font_name='res/Exo-Bold.otf',
                                   text_size=(Window.width, Window.height),
                                   opacity=0)
-        self.add_widget(self.splash_title)
+        self.add_widget(self.splash_title, canvas="before")
 
         # Splash Animation
 
@@ -139,7 +144,7 @@ class MainWidget(BaseWidget) :
 
         # Hold
         def start_fade(w): splash_anim1.start(w)
-        splash_anim0 = Animation(opacity=1, duration=3)
+        splash_anim0 = Animation(opacity=1, duration=4)
         splash_anim0.on_complete = start_fade
 
         # Fade in
@@ -151,16 +156,16 @@ class MainWidget(BaseWidget) :
 
 
         # Canvas fade in animation
-        self.label.opacity = 0
+        self.game.canvas.opacity = 0
 
         canvas_anim1 = Animation(opacity=1, duration=1.5)
 
         def start_fade_in(w): canvas_anim1.start(w)
-        canvas_anim0 = Animation(opacity=0, duration=3.75)
+        canvas_anim0 = Animation(opacity=0, duration=4.75)
         canvas_anim0.on_complete = start_fade_in
 
-        canvas_anim0.start(self.label)
-        # canvas_anim0.start(self.measure_bar)
+        canvas_anim0.start(self.game.canvas)
+
 
         # In case the window size changes
         self.last_width = Window.width
