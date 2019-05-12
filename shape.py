@@ -305,6 +305,8 @@ class Shape(InstructionGroup):
 SHAPE_CLOSE_THRESHOLD = 40
 MAX_DISTANCE_THRESHOLD = 80
 
+POINT_QUERY_INTERVAL = 2
+
 def spring_timing_function(duration):
     times = np.array([0.0, 0.7, 0.85, 1.0]) * duration
     values = np.array([0.0, 1.05, 0.9, 1.0])
@@ -422,7 +424,7 @@ class ShapeCreator(InstructionGroup):
                 self.on_complete([])
                 return
             # Only accept every third point (since data can be noisy)
-            self.gesture_pos_idx = (self.gesture_pos_idx + 1) % 3
+            self.gesture_pos_idx = (self.gesture_pos_idx + 1) % POINT_QUERY_INTERVAL
             if self.gesture_pos_idx == 0 and new_pos is not None:
                 self.add_position(new_pos[:2].tolist())
 
@@ -555,7 +557,7 @@ class ShapeEditor(InstructionGroup):
                 return
 
             # Only accept every third point (since data can be noisy)
-            self.gesture_pos_idx = (self.gesture_pos_idx + 1) % 3
+            self.gesture_pos_idx = (self.gesture_pos_idx + 1) % POINT_QUERY_INTERVAL
             if self.gesture_pos_idx == 0 and new_pos is not None:
                 self.add_position(new_pos)
 
