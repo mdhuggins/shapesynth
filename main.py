@@ -121,7 +121,8 @@ class MainWidget(BaseWidget) :
         self.game.canvas.add(self.measure_bar)
 
         # MIDI
-        self.keyboard = Keyboard(self.on_chord_change)
+        print(KEYBOARD_PORT)
+        self.keyboard = Keyboard(self.on_chord_change, port=KEYBOARD_PORT)
 
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
                   pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
@@ -418,5 +419,8 @@ class MainWidget(BaseWidget) :
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         USE_KINECT = True if sys.argv[1].lower() in ['true', '1'] else False
+
+    KEYBOARD_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+
     print("Using Kinect" if USE_KINECT else "Using mouse-based gestures")
     run(MainWidget, title="ShapeSynth")
