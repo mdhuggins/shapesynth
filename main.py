@@ -13,6 +13,7 @@ from common.writer import *
 from kivy.graphics import Color, Line
 from kivy.graphics.instructions import InstructionGroup
 from kivy.clock import Clock as kivyClock
+from kivy.animation import Animation
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -119,6 +120,47 @@ class MainWidget(BaseWidget) :
                   pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
         self.add_widget(self.label)
+
+        # Splash
+        self.splash_title = Label(text="ShapeSynth", valign='center', halign='center',
+                                  font_size='64sp',
+                                  pos=(Window.width / 2.0-50, Window.height / 2.0-50),
+                                  font_name='res/Exo-Bold.otf',
+                                  text_size=(Window.width, Window.height),
+                                  opacity=0)
+        self.add_widget(self.splash_title)
+
+        # Splash Animation
+
+        # Fade out
+        def hide_label(w): w.hidden = True
+        splash_anim1 = Animation(opacity=0, duration=1.5)
+        splash_anim1.on_complete = hide_label
+
+        # Hold
+        def start_fade(w): splash_anim1.start(w)
+        splash_anim0 = Animation(opacity=1, duration=3)
+        splash_anim0.on_complete = start_fade
+
+        # Fade in
+        def start_hold(w): splash_anim0.start(w)
+        splash_anim = Animation(opacity=1, duration=0.25)
+        splash_anim.on_complete = start_hold
+
+        splash_anim.start(self.splash_title)
+
+
+        # Canvas fade in animation
+        self.label.opacity = 0
+
+        canvas_anim1 = Animation(opacity=1, duration=1.5)
+
+        def start_fade_in(w): canvas_anim1.start(w)
+        canvas_anim0 = Animation(opacity=0, duration=3.75)
+        canvas_anim0.on_complete = start_fade_in
+
+        canvas_anim0.start(self.label)
+        # canvas_anim0.start(self.measure_bar)
 
         # In case the window size changes
         self.last_width = Window.width
