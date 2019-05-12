@@ -21,8 +21,8 @@ class ColorPalette(object):
         """
         # self.hue_average = np.mod(np.random.uniform(self.hue_average - 0.2, self.hue_average + 0.2), 2.0)
 
-        left = np.random.normal(self.hue_average - 0.15, 0.15)
-        right = np.random.normal(self.hue_average + 0.15, 0.15)
+        left = np.random.normal(self.hue_average - 0.15, 0.10)
+        right = np.random.normal(self.hue_average + 0.15, 0.10)
         self.hue_average = np.mod(np.random.choice([left, right]), 2.0)
 
         self.hue_range = (np.clip(self.hue_average - self.hue_variance, 0.0, 2.0), np.clip(self.hue_average + self.hue_variance, 0.0, 2.0))

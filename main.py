@@ -10,9 +10,11 @@ from common.synth import *
 from common.clock import *
 from common.writer import *
 
-from kivy.graphics import Color, Line
+from kivy.graphics import Color, Line, Rectangle
 from kivy.graphics.instructions import InstructionGroup
 from kivy.clock import Clock as kivyClock
+from kivy.animation import Animation
+from kivy.uix.widget import Widget
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -81,12 +83,18 @@ class MainWidget(BaseWidget) :
         for bg in self.backgrounds:
             self.add_widget(bg)
 
+        # Views
+        self.game = Widget()
+        self.add_widget(self.game)
+        self.splash = Widget()
+        self.add_widget(self.splash)
+
         self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
+        self.game.canvas.add(self.interaction_anims)
 
         # Set up hold gestures and cursors
         self.cursors = AnimGroup()
-        self.canvas.add(self.cursors)
+        self.game.canvas.add(self.cursors)
         self.cursor_map = {}
         self.normal_hsv = (0.55, 0.7, 0.7)
         self.drawing_hsv = (0.5, 0.85, 0.98)
@@ -113,18 +121,60 @@ class MainWidget(BaseWidget) :
         self.shape_editor = None
 
         self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
+        self.game.canvas.add(self.interaction_anims)
 
         self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
-        self.canvas.add(self.measure_bar)
+        self.game.canvas.add(self.measure_bar)
 
         # MIDI
-        self.keyboard = Keyboard(self.on_chord_change)
+        print(KEYBOARD_PORT)
+        self.keyboard = Keyboard(self.on_chord_change, port=KEYBOARD_PORT)
 
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
                   pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
-        self.add_widget(self.label)
+        self.game.add_widget(self.label)
+
+        # Splash
+        self.splash_title = Label(text="ShapeSynth", valign='center', halign='center',
+                                  font_size='85sp',
+                                  pos=(Window.width / 2.0-50, Window.height / 2.0-50),
+                                  font_name='res/Exo-Bold.otf',
+                                  text_size=(Window.width, Window.height))
+        self.splash.add_widget(self.splash_title)
+
+        # Splash Animation
+        self.splash.canvas.opacity = 0
+
+        # Fade out
+        def hide_label(w): self.remove_widget(w)
+        splash_anim1 = Animation(opacity=0, duration=1.5)
+        splash_anim1.on_complete = hide_label
+
+        # Hold
+        def start_fade(w): splash_anim1.start(w)
+        splash_anim0 = Animation(opacity=1, duration=4)
+        splash_anim0.on_complete = start_fade
+
+        # Fade in
+        def start_hold(w): splash_anim0.start(w)
+        splash_anim = Animation(opacity=1, duration=0.25)
+        splash_anim.on_complete = start_hold
+
+        splash_anim.start(self.splash.canvas)
+
+
+        # Game canvas fade in animation
+        self.game.canvas.opacity = 0
+
+        canvas_anim1 = Animation(opacity=1, duration=1.5)
+
+        def start_fade_in(w): canvas_anim1.start(w)
+        canvas_anim0 = Animation(opacity=0, duration=4.75)
+        canvas_anim0.on_complete = start_fade_in
+
+        canvas_anim0.start(self.game.canvas)
+
 
         # In case the window size changes
         self.last_width = Window.width
@@ -147,6 +197,8 @@ class MainWidget(BaseWidget) :
 
             # Update components
             self.measure_bar.update_size(Window.width, int(Window.height*0.02))
+            self.splash_title.pos = (Window.width / 2.0-50, Window.height / 2.0-50)
+            self.label.pos = (Window.width / 2.0 - 50.0, 50.0)
 
 
         self.kinect.on_update()
@@ -172,7 +224,7 @@ class MainWidget(BaseWidget) :
             elif len(self.shapes) == 0:
                 self.label.text = 'Extend your hand to start drawing a shape.'
             else:
-                self.label.text = 'harmony: ' + Conductor.harmony_string()
+                self.label.text = 'Harmony: ' + Conductor.harmony_string()
 
     # Change harmony with keystrokes
 
@@ -287,7 +339,7 @@ class MainWidget(BaseWidget) :
             self.interaction_anims.remove(editing_shape)
             self.shape_editor = ShapeEditor(gesture.identifier.hsv, editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
             self.interaction_anims.add(self.shape_editor)
-            self.label.text = "Move your hand to alter the shape position and size."
+            self.label.text = "Move your hand to change the shape's position and size."
 
             # Disable other gestures while editing a shape
             for gest in self.gestures:
@@ -375,5 +427,8 @@ class MainWidget(BaseWidget) :
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         USE_KINECT = True if sys.argv[1].lower() in ['true', '1'] else False
+
+    KEYBOARD_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+
     print("Using Kinect" if USE_KINECT else "Using mouse-based gestures")
     run(MainWidget, title="ShapeSynth")
