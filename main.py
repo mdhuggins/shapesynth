@@ -76,9 +76,11 @@ class MainWidget(BaseWidget) :
         self.mouse_pos = None
         self.shape_scale = 500.0 / Window.width # After drawing shapes, transform by this scale factor
 
-        # TODO
+        # Views
         self.game = Widget()
         self.add_widget(self.game)
+        self.splash = Widget()
+        self.add_widget(self.splash)
 
         self.interaction_anims = AnimGroup()
         self.game.canvas.add(self.interaction_anims)
@@ -128,17 +130,17 @@ class MainWidget(BaseWidget) :
 
         # Splash
         self.splash_title = Label(text="ShapeSynth", valign='center', halign='center',
-                                  font_size='64sp',
+                                  font_size='85sp',
                                   pos=(Window.width / 2.0-50, Window.height / 2.0-50),
                                   font_name='res/Exo-Bold.otf',
-                                  text_size=(Window.width, Window.height),
-                                  opacity=0)
-        self.add_widget(self.splash_title, canvas="before")
+                                  text_size=(Window.width, Window.height))
+        self.splash.add_widget(self.splash_title)
 
         # Splash Animation
+        self.splash.canvas.opacity = 0
 
         # Fade out
-        def hide_label(w): w.hidden = True
+        def hide_label(w): self.remove_widget(w)
         splash_anim1 = Animation(opacity=0, duration=1.5)
         splash_anim1.on_complete = hide_label
 
@@ -152,10 +154,10 @@ class MainWidget(BaseWidget) :
         splash_anim = Animation(opacity=1, duration=0.25)
         splash_anim.on_complete = start_hold
 
-        splash_anim.start(self.splash_title)
+        splash_anim.start(self.splash.canvas)
 
 
-        # Canvas fade in animation
+        # Game canvas fade in animation
         self.game.canvas.opacity = 0
 
         canvas_anim1 = Animation(opacity=1, duration=1.5)
@@ -188,6 +190,8 @@ class MainWidget(BaseWidget) :
 
             # Update components
             self.measure_bar.update_size(Window.width, int(Window.height*0.02))
+            self.splash_title.pos = (Window.width / 2.0-50, Window.height / 2.0-50)
+            self.label.pos = (Window.width / 2.0 - 50.0, 50.0)
 
 
         self.kinect.on_update()
@@ -211,7 +215,7 @@ class MainWidget(BaseWidget) :
             elif len(self.shapes) == 0:
                 self.label.text = 'Extend your hand to start drawing a shape.'
             else:
-                self.label.text = 'harmony: ' + Conductor.harmony_string()
+                self.label.text = 'Harmony: ' + Conductor.harmony_string()
 
     # Change harmony with keystrokes
 
@@ -326,7 +330,7 @@ class MainWidget(BaseWidget) :
             self.interaction_anims.remove(editing_shape)
             self.shape_editor = ShapeEditor(gesture.identifier.hsv, editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
             self.interaction_anims.add(self.shape_editor)
-            self.label.text = "Move your hand to alter the shape position and size."
+            self.label.text = "Move your hand to change the shape's position and size."
 
             # Disable other gestures while editing a shape
             for gest in self.gestures:
