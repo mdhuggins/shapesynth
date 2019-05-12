@@ -27,6 +27,7 @@ from keyboard import *
 from color import *
 from measure_bar import *
 from cursor import AnimatedCursor
+from grid import *
 
 # x, y, and z ranges to define a 3D bounding box
 kKinectRange = ( (-500, 500), (-200, 700), (-500, 0) )
@@ -77,13 +78,16 @@ class MainWidget(BaseWidget) :
         self.interaction_anims = AnimGroup()
         self.canvas.add(self.interaction_anims)
 
-        # Set up hold gestures and cursors
+        # Set up hold gestures, cursors, and grid
         self.cursors = AnimGroup()
         self.canvas.add(self.cursors)
         self.cursor_map = {}
         self.normal_hsv = (0.55, 0.7, 0.7)
         self.drawing_hsv = (0.5, 0.85, 0.98)
         cursor_kwargs = {} #{"normal_hsv": self.normal_hsv, "drawing_hsv": self.drawing_hsv}
+
+        self.grid = Grid()
+        self.cursors.add(self.grid)
 
         if USE_KINECT:
             self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel),
@@ -105,9 +109,6 @@ class MainWidget(BaseWidget) :
         self.shapes = []
         self.shape_creator = None
         self.shape_editor = None
-
-        self.interaction_anims = AnimGroup()
-        self.canvas.add(self.interaction_anims)
 
         self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
         self.canvas.add(self.measure_bar)
@@ -288,6 +289,8 @@ class MainWidget(BaseWidget) :
     def on_hold_gesture_trigger(self, gesture):
         """Called when a hold gesture begins."""
         cursor = self.cursor_map[gesture.source]
+        if gesture.identifier == "create":
+            self.grid.set_grid_visible(True)
         cursor.set_state(AnimatedCursor.HOLDING)
 
     def on_hold_gesture_cancel(self, gesture):
@@ -303,6 +306,7 @@ class MainWidget(BaseWidget) :
             return
         cursor = self.cursor_map[self.shape_creator.source]
         cursor.set_state(AnimatedCursor.NORMAL)
+        self.grid.set_grid_visible(False)
 
         if len(points) > 0:
             # Translate and scale the points around the first point
