@@ -13,7 +13,7 @@ class Grid(InstructionGroup):
     grid_alpha = 0.6
     alpha_anim_dur = 0.4
 
-    def __init__(self, grid_interval=160):
+    def __init__(self, grid_interval=240):
         """
         grid_interval: the number of pixels between grid lines
         """
@@ -22,7 +22,7 @@ class Grid(InstructionGroup):
         self.alpha_anim = None
         self.target_anims = None
         self.target_lines = None
-        self.grid_color = Color(1, 1, 1)
+        self.grid_color = Color(hsv=(0.5, 0.7, 0.4))
         self.grid_color.a = 0.0
         self.add(self.grid_color)
         self.make_grid()

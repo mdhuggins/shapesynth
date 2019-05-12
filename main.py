@@ -289,15 +289,22 @@ class MainWidget(BaseWidget) :
     def on_hold_gesture_trigger(self, gesture):
         """Called when a hold gesture begins."""
         cursor = self.cursor_map[gesture.source]
+        self.grid.set_grid_visible(True)
         if gesture.identifier == "create":
-            self.grid.set_grid_visible(True)
             self.grid.make_target_animation(gesture.original_pos, gesture.hold_time)
         cursor.set_state(AnimatedCursor.HOLDING)
+        for other_gesture in self.gestures:
+            if other_gesture != gesture:
+                other_gesture.set_enabled(False)
 
     def on_hold_gesture_cancel(self, gesture):
         """Called when a hold gesture is canceled."""
         cursor = self.cursor_map[gesture.source]
         cursor.set_state(AnimatedCursor.NORMAL)
+        self.grid.set_grid_visible(False)
+        for other_gesture in self.gestures:
+            other_gesture.set_enabled(True)
+
 
     def on_shape_creator_complete(self, points):
         """
@@ -350,6 +357,7 @@ class MainWidget(BaseWidget) :
             return
         cursor = self.cursor_map[self.shape_editor.source]
         cursor.set_state(AnimatedCursor.NORMAL)
+        self.grid.set_grid_visible(False)
 
         def on_editor_completion():
             self.interaction_anims.remove(self.shape_editor)
