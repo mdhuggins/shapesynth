@@ -458,7 +458,7 @@ class Composer(object):
 
         # Choose velocity
         if last_note is None or last_note[1] is None:
-            velocity = np.random.normal(self.velocity_level, self.velocity_variance)
+            velocity = np.random.normal(max(0,self.velocity_level), self.velocity_variance)
         else:
             last_velocity = last_note[1]
             mean = (pitch - last_note[0]) / 20.0

@@ -1,6 +1,7 @@
 # common import
 import sys
 sys.path.append('..')
+import time
 
 from common.core import *
 from common.gfxutil import *
@@ -136,6 +137,7 @@ class MainWidget(BaseWidget) :
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
                   pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
+        self.label.opacity = 0
         self.game.add_widget(self.label)
 
         # Splash
@@ -183,6 +185,22 @@ class MainWidget(BaseWidget) :
         self.last_width = Window.width
         self.last_height = Window.height
 
+        self.first_shape_t = None
+        #
+        #
+        # self.help_period = 10  # In seconds
+        # self.help_duration = 5
+        # self.help_t = 0
+        #
+        # if USE_KINECT:
+        #     self.help_messages = ['Extend your hand to start drawing a shape.',
+        #                           "Hold your hand over a shape to grab it.",
+        #                           "To delete a shape, grab it and throw it over your shoulder."]
+        # else:
+        #     self.help_messages = ['Click and hold to start drawing a shape.',
+        #                           "Click and hold a shape to grab it.",
+        #                           "To delete a shape, grab it and move it off-screen."]
+
     def on_request_close(self, *args, **kwargs):
         Conductor.stop()
         for shape in self.shapes:
@@ -190,7 +208,7 @@ class MainWidget(BaseWidget) :
         SamplerManager.stop_workers()
         return False
 
-    def on_update(self) :
+    def on_update(self):
         # Check if window changed size
         if Window.height != self.last_height or Window.width != self.last_width:
             print("Window size changed!")
@@ -207,11 +225,20 @@ class MainWidget(BaseWidget) :
             self.last_width = Window.width
             self.last_height = Window.height
 
+        # # Display a helpful tip
+        # self.help_t += kivyClock.frametime
+        # if self.help_period < self.help_t < self.help_period + self.help_duration:
+        #     if self.label.text == 'Harmony: ' + Conductor.harmony_string():
+        #         self.label.text = np.random.choice(self.help_messages)
+        # elif self.help_period < self.help_t:
+        #     self.label.text = 'Harmony: ' + Conductor.harmony_string()
+        #     self.help_t = 0
 
         self.kinect.on_update()
 
         if USE_KINECT and not self.is_tracking():
-            self.label.text = ''
+            # self.label.text = ''
+            self.label.opacity = 0
 
         SamplerManager.on_update()
         self.audio.on_update()
@@ -225,13 +252,35 @@ class MainWidget(BaseWidget) :
         self.measure_bar.on_update()
         self.interaction_anims.on_update()
         self.cursors.on_update()
-        if len(self.label.text) == 0:
+        if self.label.opacity == 0:
+        #if len(self.label.text) == 0 and self.label.opacity == 0:
             if USE_KINECT and not self.is_tracking():
+                self.fade_in_label()
                 self.label.text = 'Hold your arms up to begin.'
             elif len(self.shapes) == 0:
-                self.label.text = 'Extend your hand to start drawing a shape.'
+                self.fade_in_label()
+                if USE_KINECT:
+                    self.label.text = 'Extend your hand to start drawing a shape.'
+                else:
+                    self.label.text = 'Click and hold to start drawing a shape.'
             else:
-                self.label.text = 'Harmony: ' + Conductor.harmony_string()
+                self.label.text = '' #''Harmony: ' + Conductor.harmony_string()
+
+        if self.first_shape_t and self.label.opacity == 0:
+            if time.time() - self.first_shape_t < 10:
+                if USE_KINECT:
+                    new_text = 'Hold your hand out over a shape to grab it.'
+                else:
+                    new_text = 'Click and hold a shape to grab it.'
+                print("in")
+                if self.label.text != new_text:
+                    self.label.text = new_text
+                    self.fade_in_label()
+            else:
+                self.first_shape_t = None
+                # self.label.text = ''
+                self.fade_out_label()
+
 
     # Change harmony with keystrokes
 
@@ -244,7 +293,7 @@ class MainWidget(BaseWidget) :
                 self.measure_bar.update_color()
                 for shape in self.shapes:
                     shape.composer.clear_notes()
-                self.label.text = ''
+                Animation(opacity=0, duration=1).start(self.label)
 
         if keycode[1] == 'spacebar':
             for shape in self.shapes:
@@ -263,7 +312,8 @@ class MainWidget(BaseWidget) :
             self.measure_bar.update_color()
             for shape in self.shapes:
                 shape.composer.clear_notes()
-        self.label.text = ''
+        # self.label.text = ''
+        self.fade_out_label()
 
     # Mouse movement callbacks
 
@@ -330,13 +380,21 @@ class MainWidget(BaseWidget) :
             # Initialize the shape gesture using the same point source as this hold gesture gesture
             self.shape_creator = ShapeCreator(self.drawing_hsv, gesture.source, self.on_shape_creator_complete)
             self.interaction_anims.add(self.shape_creator)
-            self.label.text = "Move your hand to draw a closed shape."
+
+            if USE_KINECT:
+                new_text = "Move your hand to draw a closed shape."
+            else:
+                new_text = "Move the cursor to draw a closed shape."
+
+            self.fade_out_in_label(new_text)
 
             # Disable other gestures while creating a shape
             for gest in self.gestures:
                 gest.set_enabled(False)
 
         elif gesture.identifier in self.shapes:
+            self.first_shape_t = None  # Don't show move tip
+
             editing_shape = gesture.identifier
 
             cursor = self.cursor_map[gesture.source]
@@ -346,7 +404,14 @@ class MainWidget(BaseWidget) :
             self.interaction_anims.remove(editing_shape)
             self.shape_editor = ShapeEditor(gesture.identifier.hsv, editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
             self.interaction_anims.add(self.shape_editor)
-            self.label.text = "Move your hand to change the shape's position and size."
+
+            if USE_KINECT:
+                new_text = "Move your hand to change the shape's position and size.\nTo delete the shape, throw it over your shoulder."
+            else:
+                new_text = "Move the cursor to drag the shape.\nTo delete the shape, drag it offscreen."
+
+            self.fade_out_in_label(new_text)
+
 
             # Disable other gestures while editing a shape
             for gest in self.gestures:
@@ -403,6 +468,10 @@ class MainWidget(BaseWidget) :
                 self.gestures.insert(0, HoldGesture(new_shape, self.get_right_pos, self.on_hold_gesture, lambda x: self.is_in_front(x) and new_shape.hit_test(x), on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel))
             else:
                 self.gestures.insert(0, HoldGesture(new_shape, self.get_touch_pos, self.on_hold_gesture, hit_test=new_shape.hit_test, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel))
+
+            if len(self.shapes) == 1:
+                self.first_shape_t = time.time()
+
         else:
             def on_creator_completion():
                 self.interaction_anims.remove(self.shape_creator)
@@ -413,7 +482,9 @@ class MainWidget(BaseWidget) :
         for gesture in self.gestures:
             gesture.set_enabled(True)
 
-        self.label.text = ''
+        # self.label.text = ''
+        self.fade_out_label()
+
 
     def on_shape_editor_complete(self, editor, removed):
         """
@@ -439,8 +510,31 @@ class MainWidget(BaseWidget) :
         # Reenable other gestures
         for gesture in self.gestures:
             gesture.set_enabled(True)
+            gesture.set_enabled(True)
 
-        self.label.text = ''
+        # self.label.text = ''
+        self.fade_out_label()
+
+    def fade_out_label(self):
+        if self.label.opacity == 1:
+            Animation(opacity=0, duration=0.25).start(self.label)
+
+    def fade_in_label(self):
+        if self.label.opacity == 0:
+            self.label.opacity = 0.001
+            Animation(opacity=1, duration=0.25).start(self.label)
+
+    def fade_out_in_label(self, t):
+        if self.label.opacity == 0:
+            self.label.text = t
+            self.fade_in_label()
+        else:
+            def fade_in(l):
+                l.text = t
+                Animation(opacity=1, duration=0.25).start(l)
+            fade_out = Animation(opacity=0.001, duration=0.25)
+            fade_out.on_complete = fade_in
+            fade_out.start(self.label)
 
 # pass in which MainWidget to run as a command-front_line arg
 if __name__ == '__main__':
