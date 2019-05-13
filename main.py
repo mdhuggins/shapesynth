@@ -54,6 +54,8 @@ class MainWidget(BaseWidget) :
 
         Window.bind(on_request_close=self.on_request_close)
 
+        Window.show_cursor = False
+
         self.writer = AudioWriter('data') # for debugging audio output
         self.audio = Audio(1, self.writer.add_audio)
         self.mixer = Mixer()
