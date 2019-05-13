@@ -226,7 +226,7 @@ class MainWidget(BaseWidget) :
             self.grid.redraw_grid()
             self.measure_bar.update_size(Window.width, int(Window.height*0.02))
             self.splash_title.pos = (Window.width / 2.0-50, Window.height / 2.0-50)
-            self.label.pos = (Window.width / 2.0 - 50.0, 50.0)
+            self.label.pos = (Window.width / 2.0 - 50.0, Window.height - 200.0)
 
             self.last_width = Window.width
             self.last_height = Window.height
