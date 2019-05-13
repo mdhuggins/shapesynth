@@ -181,7 +181,7 @@ class MainWidget(BaseWidget) :
         self.last_width = Window.width
         self.last_height = Window.height
 
-    def on_request_close(self, *args):
+    def on_request_close(self, *args, **kwargs):
         Conductor.stop()
         for shape in self.shapes:
             shape.composer.stop()
@@ -193,13 +193,17 @@ class MainWidget(BaseWidget) :
         if Window.height != self.last_height or Window.width != self.last_width:
             print("Window size changed!")
 
-            self.last_width = Window.width
-            self.last_height = Window.height
-
             # Update components
+            for shape in self.shapes:
+                shape.update_for_window_size((self.last_width, self.last_height))
+
+            self.grid.redraw_grid()
             self.measure_bar.update_size(Window.width, int(Window.height*0.02))
             self.splash_title.pos = (Window.width / 2.0-50, Window.height / 2.0-50)
             self.label.pos = (Window.width / 2.0 - 50.0, 50.0)
+
+            self.last_width = Window.width
+            self.last_height = Window.height
 
 
         self.kinect.on_update()

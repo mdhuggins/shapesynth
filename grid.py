@@ -34,6 +34,7 @@ class Grid(InstructionGroup):
         """
         Creates the lines that make up the grid.
         """
+        self.gridlines = []
         self.add(PushMatrix())
         self.add(Translate(Window.width / 2.0, Window.height / 2.0))
 
@@ -43,13 +44,23 @@ class Grid(InstructionGroup):
             line = Line(points=[x * self.grid_interval, -Window.height / 2.0, x * self.grid_interval, Window.height / 2.0])
             line.width = 0.5
             self.add(line)
+            self.gridlines.append(line)
 
         for y in range(-y_bound, y_bound + 1):
             line = Line(points=[-Window.width / 2.0, y * self.grid_interval, Window.width / 2.0, y * self.grid_interval])
             line.width = 0.5
             self.add(line)
+            self.gridlines.append(line)
 
         self.add(PopMatrix())
+
+    def redraw_grid(self):
+        """
+        Removes the existing grid and draws a new one.
+        """
+        for line in self.gridlines:
+            self.remove(line)
+        self.make_grid()
 
     def set_grid_visible(self, visible):
         """
