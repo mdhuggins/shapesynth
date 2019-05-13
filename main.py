@@ -127,7 +127,7 @@ class MainWidget(BaseWidget) :
         self.game.canvas.add(self.measure_bar)
 
         # MIDI
-        print(KEYBOARD_PORT)
+        print("Using port {} for MIDI keyboard".format(KEYBOARD_PORT))
         self.keyboard = Keyboard(self.on_chord_change, port=KEYBOARD_PORT)
 
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',

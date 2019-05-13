@@ -125,15 +125,16 @@ class Shape(InstructionGroup):
         self.mesh.vertices = vertices
         self.mesh.indices = indices
 
-    def update_sound(self):
+    def update_sound(self, new_composer=True):
         """
         Refreshes the sonic properties of the shape.
         """
         was_on = self.composer.playing
-        self.composer.stop()
+        if new_composer:
+            self.composer.stop()
         self.make_shape_properties()
         self.make_synth()
-        self.make_composer(self.composer.sched, self.composer.mixer, was_on)
+        self.make_composer(self.composer.sched, self.composer.mixer, was_on, new_composer)
         self.update_particle_system()
 
     def make_shape_properties(self):
@@ -173,7 +174,6 @@ class Shape(InstructionGroup):
         # r /= len(self.points)
 
         self.roughness = np.clip(r / 10.0, 0.0, 1.0)
-        print(self.roughness)
 
     def make_synth(self):
         """
@@ -186,12 +186,13 @@ class Shape(InstructionGroup):
 
         self.synth = ShapeSynth(self.center[0], self.center[1], gain, self.roughness)
 
-    def make_composer(self, sched, mixer, start=True):
+    def make_composer(self, sched, mixer, start=True, reset=True):
         """
         Builds this shape's Composer using its location and properties of its
         vertices.
         """
-        self.composer = Composer(sched, mixer, self.synth.make_note)
+        if reset:
+            self.composer = Composer(sched, mixer, self.synth.make_note)
         self.composer.pitch_level = (1/16 + self.center[1]*(1-2*self.center[0])/8 + np.sqrt(self.center[0] * 0.7))*8/9
         self.composer.pitch_variance = (self.center[0] / 2.0) ** 2
         self.composer.complexity = self.roughness
@@ -397,6 +398,7 @@ class ShapeCreator(InstructionGroup):
                 self.bg_anim = None
                 if self.anim_completion is not None:
                     self.anim_completion()
+                    return False
 
         # Handle the shape animation (with spring function)
         if self.shape_anim_points is not None:
@@ -500,6 +502,10 @@ class ShapeEditor(InstructionGroup):
                 self.end_hold.set_enabled(True)
             kivyClock.schedule_once(enable_gesture, 1.0)
 
+        self.move_refresh_rate = 0.25  # In seconds
+        self.move_clock = 0
+
+
     def add_position(self, pos):
         """
         Updates the shape using the given hand position (in 3D if available).
@@ -509,6 +515,7 @@ class ShapeEditor(InstructionGroup):
         if self.original_position is None:
             self.original_position = pos
             return
+
 
         self.translate.xy = pos[:2] - self.original_position[:2]
         if len(pos) > 2:
@@ -531,6 +538,7 @@ class ShapeEditor(InstructionGroup):
                 self.bg_anim = None
                 if self.anim_completion is not None:
                     self.anim_completion()
+                    return False
 
         if self.scale_anim is not None:
             new_scale = self.scale_anim.eval(self.time)
@@ -560,6 +568,33 @@ class ShapeEditor(InstructionGroup):
             self.gesture_pos_idx = (self.gesture_pos_idx + 1) % POINT_QUERY_INTERVAL
             if self.gesture_pos_idx == 0 and new_pos is not None:
                 self.add_position(new_pos)
+
+        # Update composer/synth
+        self.move_clock += dt
+        if self.move_clock > self.move_refresh_rate:
+            print("Updating shape with move")
+            self.move_clock = 0
+            self.on_move()
+
+    def on_move(self):
+        # Update the shape
+        self.original_position = self.current_position
+
+        point_array = np.array(self.shape.points)
+        translation = np.array(self.translate.xy)
+        scale = self.scale.x
+        self.shape.set_points((point_array - self.shape_center) * scale + self.shape_center + translation)
+        self.translate.xy = (0.0, 0.0)
+        self.scale.x = 1.0
+        self.scale.y = 1.0
+
+
+        self.shape.make_shape_properties()
+        self.shape.make_synth()
+        self.shape.update_sound(new_composer=False)
+        self.shape.composer.note_factory = self.shape.synth.make_note
+        self.shape.composer.clear_notes()
+
 
     def end_gesture(self, ignore):
         """
