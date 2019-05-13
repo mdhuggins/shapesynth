@@ -29,6 +29,7 @@ from keyboard import *
 from color import *
 from measure_bar import *
 from cursor import AnimatedCursor
+from grid import *
 from background import *
 
 # x, y, and z ranges to define a 3D bounding box
@@ -92,13 +93,16 @@ class MainWidget(BaseWidget) :
         self.interaction_anims = AnimGroup()
         self.game.canvas.add(self.interaction_anims)
 
-        # Set up hold gestures and cursors
+        # Set up hold gestures, cursors, and grid
         self.cursors = AnimGroup()
         self.game.canvas.add(self.cursors)
         self.cursor_map = {}
         self.normal_hsv = (0.55, 0.7, 0.7)
         self.drawing_hsv = (0.5, 0.85, 0.98)
         cursor_kwargs = {} #{"normal_hsv": self.normal_hsv, "drawing_hsv": self.drawing_hsv}
+
+        self.grid = Grid()
+        self.cursors.add(self.grid)
 
         if USE_KINECT:
             self.gestures = [HoldGesture("create", self.get_left_pos, self.on_hold_gesture, self.is_in_front, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel),
@@ -119,9 +123,6 @@ class MainWidget(BaseWidget) :
         self.shapes = []
         self.shape_creator = None
         self.shape_editor = None
-
-        self.interaction_anims = AnimGroup()
-        self.game.canvas.add(self.interaction_anims)
 
         self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
         self.game.canvas.add(self.measure_bar)
@@ -180,7 +181,7 @@ class MainWidget(BaseWidget) :
         self.last_width = Window.width
         self.last_height = Window.height
 
-    def on_request_close(self, *args):
+    def on_request_close(self, *args, **kwargs):
         Conductor.stop()
         for shape in self.shapes:
             shape.composer.stop()
@@ -192,13 +193,17 @@ class MainWidget(BaseWidget) :
         if Window.height != self.last_height or Window.width != self.last_width:
             print("Window size changed!")
 
-            self.last_width = Window.width
-            self.last_height = Window.height
-
             # Update components
+            for shape in self.shapes:
+                shape.update_for_window_size((self.last_width, self.last_height))
+
+            self.grid.redraw_grid()
             self.measure_bar.update_size(Window.width, int(Window.height*0.02))
             self.splash_title.pos = (Window.width / 2.0-50, Window.height / 2.0-50)
             self.label.pos = (Window.width / 2.0 - 50.0, 50.0)
+
+            self.last_width = Window.width
+            self.last_height = Window.height
 
 
         self.kinect.on_update()
@@ -232,7 +237,7 @@ class MainWidget(BaseWidget) :
         harmony = lookup(keycode[1], '123456', HARMONIES)
         if harmony is not None:
             is_different = (harmony != Conductor.harmony)
-            Conductor.harmony = harmony
+            Conductor.set_harmony(harmony)
             if is_different:
                 self.measure_bar.update_color()
                 for shape in self.shapes:
@@ -252,7 +257,7 @@ class MainWidget(BaseWidget) :
         """
         new_harmony = [pitch % 12 for pitch in sorted(pitches)]
         if new_harmony != Conductor.harmony:
-            Conductor.harmony = new_harmony
+            Conductor.set_harmony(new_harmony)
             self.measure_bar.update_color()
             for shape in self.shapes:
                 shape.composer.clear_notes()
@@ -348,12 +353,22 @@ class MainWidget(BaseWidget) :
     def on_hold_gesture_trigger(self, gesture):
         """Called when a hold gesture begins."""
         cursor = self.cursor_map[gesture.source]
+        self.grid.set_grid_visible(True)
+        if gesture.identifier == "create":
+            self.grid.make_target_animation(gesture.original_pos, gesture.hold_time)
         cursor.set_state(AnimatedCursor.HOLDING)
+        for other_gesture in self.gestures:
+            if other_gesture != gesture:
+                other_gesture.set_enabled(False)
 
     def on_hold_gesture_cancel(self, gesture):
         """Called when a hold gesture is canceled."""
         cursor = self.cursor_map[gesture.source]
         cursor.set_state(AnimatedCursor.NORMAL)
+        self.grid.set_grid_visible(False)
+        for other_gesture in self.gestures:
+            other_gesture.set_enabled(True)
+
 
     def on_shape_creator_complete(self, points):
         """
@@ -363,6 +378,7 @@ class MainWidget(BaseWidget) :
             return
         cursor = self.cursor_map[self.shape_creator.source]
         cursor.set_state(AnimatedCursor.NORMAL)
+        self.grid.set_grid_visible(False)
 
         if len(points) > 0:
             # Translate and scale the points around the first point
@@ -405,6 +421,7 @@ class MainWidget(BaseWidget) :
             return
         cursor = self.cursor_map[self.shape_editor.source]
         cursor.set_state(AnimatedCursor.NORMAL)
+        self.grid.set_grid_visible(False)
 
         def on_editor_completion():
             self.interaction_anims.remove(self.shape_editor)

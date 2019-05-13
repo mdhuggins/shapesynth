@@ -96,6 +96,10 @@ class Shape(InstructionGroup):
         for (shadow, color) in self.shadow_anims:
             shadow.pos = self.screen_center - np.array(shadow.size) / 2.0
 
+    def update_for_window_size(self, last_size):
+        """Updates this shape's points using the given size as the last size."""
+        self.set_points(np.array(self.points) * np.array([Window.width, Window.height]) / np.array(last_size))
+
     def set_alpha(self, alpha):
         self.fill_color.a = alpha / 2.0
         self.stroke_color.a = alpha
@@ -182,7 +186,8 @@ class Shape(InstructionGroup):
         """
         min_gain = 0.05
         max_gain = 0.6
-        gain = np.clip(self.area / 6000.0 * (max_gain - min_gain) + min_gain, min_gain, max_gain)
+        window_area = Window.width * Window.height
+        gain = np.clip(self.area / (0.0125 * window_area) * (max_gain - min_gain) + min_gain, min_gain, max_gain)
 
         self.synth = ShapeSynth(self.center[0], self.center[1], gain, self.roughness)
 
@@ -327,7 +332,7 @@ class ShapeCreator(InstructionGroup):
 
         self.points = []
         self.hsv = hsv
-        self.bg_color = Color(hsv=(0.6, 0.9, 0.3))
+        self.bg_color = Color(0, 0, 0)
         self.bg_color.a = 0.0
         self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.7))
         self.shape_alpha_anim = None
@@ -466,7 +471,7 @@ class ShapeEditor(InstructionGroup):
         self.shape = shape
 
         self.hsv = hsv
-        self.bg_color = Color(hsv=(0.6, 0.9, 0.3))
+        self.bg_color = Color(0, 0, 0)
         self.bg_color.a = 0.0
         self.bg_anim = KFAnim((0.0, 0.0), (0.5, 0.7))
         self.add(self.bg_color)

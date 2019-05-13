@@ -2,6 +2,13 @@ import numpy as np
 from common.clock import *
 from synth.sampler import SharedArrayPool
 
+SCALES = [
+    [0, 2, 4, 5, 7, 9, 11],
+    [0, 2, 3, 5, 7, 8, 10],
+    [0, 2, 3, 5, 7, 9, 11],
+    [0, 2, 4, 6, 8, 10]
+]
+
 class Conductor(object):
     """
     Provides evolving parameters for the composers.
@@ -12,6 +19,7 @@ class Conductor(object):
     scheduler = None
     harmony = [0, 4, 7, 9]
     scale = [0, 2, 4, 5, 7, 9, 11]
+    key = 0 # relative to C major
     playing = False
     ticks_per_measure = kTicksPerQuarter * 4
     pitch_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -19,6 +27,21 @@ class Conductor(object):
     @staticmethod
     def harmony_string():
         return ', '.join([Conductor.pitch_names[i] for i in sorted(Conductor.harmony)])
+
+    @staticmethod
+    def set_harmony(new_harmony):
+        best_match = None
+        best_score = 0
+        pitch_set = set(new_harmony + [Conductor.key])
+        for scale in SCALES:
+            for key in range(12):
+                pitches = set(p + key for p in scale)
+                score = len(pitches & pitch_set)
+                if score > best_score:
+                    best_match = sorted(pitches)
+                    best_score = score
+        Conductor.scale = best_match
+        Conductor.harmony = new_harmony
 
     @staticmethod
     def initialize(sched):
@@ -196,6 +219,7 @@ class Composer(object):
         self.last_rhythm = None
         self.scheduled_to_beat = None
         self.update_callback = None
+        self.last_note_cache = None
 
     def start(self):
         if self.playing: return
@@ -214,6 +238,8 @@ class Composer(object):
         else: self.start()
 
     def clear_notes(self):
+        if len(self.measure_stack) > 0 and len(self.measure_stack[-1]) > 0:
+            self.last_note_cache = self.measure_stack[-1][-1]
         self.measure_stack = []
         self.queued_measures = []
 
@@ -270,6 +296,9 @@ class Composer(object):
                 current_measure = self.measure_stack[-1]
                 if len(current_measure) > 0:
                     last_note = current_measure[-1]
+            elif self.last_note_cache is not None:
+                last_note = self.last_note_cache
+                self.last_note_cache = None
             else:
                 last_note = None
             # Maybe ignore the last note
