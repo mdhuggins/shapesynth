@@ -17,7 +17,7 @@ from composer import Conductor
 
 class MeasureBar(InstructionGroup):
 
-    def __init__(self, x_max, height, palette, scheduler):
+    def __init__(self, x_max, height, palette, scheduler, left_label, right_label):
         super(MeasureBar, self).__init__()
         self.x_max = x_max
 
@@ -68,6 +68,29 @@ class MeasureBar(InstructionGroup):
         self.alpha_increase = 0.5
         self.alpha_anim = None
 
+        # Labels
+        self.left_label = left_label
+        self.left_label.pos = (40.0, self.height + 20.0)
+        self.left_label.font_size = '16sp'
+        self.left_label.halign = 'left'
+        self.left_label.valign = 'bottom'
+        self.left_label.text = 'Harmony'
+        self.left_label.bind(texture_size=self.left_label.setter('size'))
+        self.left_label.size_hint = (None, None)
+        self.right_label = right_label
+        self.right_label.font_size = '16sp'
+        self.right_label.halign = 'right'
+        self.right_label.valign = 'bottom'
+        self.right_label.text = 'C, D, F#, A'
+        self.right_label.size_hint = (None, None)
+        self.right_label.bind(texture_size=self.right_label.setter('size'))
+        self.right_label.pos = (Window.width - 40.0 - 180.0, self.height + 20.0)
+
+        self.left_label_alpha = None
+        self.right_label_alpha = None
+        self.left_label_slide = None
+        self.right_label_slide = None
+
         self.update_color(animated=False, init=True)
 
 
@@ -95,16 +118,16 @@ class MeasureBar(InstructionGroup):
         ticks_to_next_bar = next_bar - tick
 
         new_hsv = self.palette.new_color(0.7)
-        new_hsv = Color(hsv=new_hsv).rgb
+        new_rgb = Color(hsv=new_hsv).rgb
 
-        self.front_color_anim = (tick, KFAnim((0.0, *self.hsv), (ticks_to_next_bar if animated else 0.0, *new_hsv)))
+        self.front_color_anim = (tick, KFAnim((0.0, *self.hsv), (ticks_to_next_bar if animated else 0.0, *new_rgb)))
 
         back_anim_ticks = min(Conductor.ticks_per_measure/16, ticks_to_next_bar)
-        self.back_color_anim = (tick, KFAnim((0.0, *self.hsv), (back_anim_ticks if animated else 0.0, *new_hsv)))
-        self.hsv = new_hsv
+        self.back_color_anim = (tick, KFAnim((0.0, *self.hsv), (back_anim_ticks if animated else 0.0, *new_rgb)))
+        self.hsv = new_rgb
 
         alpha = self.back_color.a
-        self.back_color.hsv = new_hsv
+        self.back_color.hsv = new_rgb
         self.back_color.a = alpha
 
         self.front_alpha_anim = (tick, KFAnim((0.0, 0),
@@ -116,8 +139,53 @@ class MeasureBar(InstructionGroup):
                                              (ticks_to_next_bar if animated else 0.0, self.alpha_increase),
                                              (ticks_to_next_bar+Conductor.ticks_per_measure/4, 0)))
 
+        # Update labels
+        if init:
+            self.left_label.text = Conductor.harmony_string()
+            self.left_label.color = (*new_rgb, 1)
+            self.right_label.text = ''
+        elif self.right_label_slide is not None:
+            if self.left_label.text == self.right_label.text:
+                # The left label was already updated - update it
+                self.left_label.text = Conductor.harmony_string()
+                self.left_label.color = (*new_rgb, 1)
+
+            self.right_label.text = Conductor.harmony_string()
+            self.right_label.color = (*new_rgb, 1)
+        else:
+            # update right label immediately
+            self.right_label.text = Conductor.harmony_string()
+            self.right_label.color = (*new_rgb, 1)
+            self.right_label.opacity = 0.0
+
+            # fade in right label, fade out left label
+            anim_duration = Conductor.ticks_per_measure / 4
+            self.right_label_alpha = (tick, KFAnim((0.0, 0),
+                                                   (ticks_to_next_bar if animated else 0.0, 1.0),
+                                                   ((ticks_to_next_bar + anim_duration) if animated else 0.0, 0.0)))
+            x_pos = self.right_label.pos[0]
+            self.right_label_slide = (tick, KFAnim((0.0, x_pos),
+                                                   (ticks_to_next_bar if animated else 0.0, x_pos),
+                                                   ((ticks_to_next_bar + anim_duration) if animated else 0.0, Window.width + 100.0),
+                                                   ((ticks_to_next_bar + anim_duration + 1) if animated else 0.0, x_pos)))
+
+            self.left_label_alpha = (tick, KFAnim((0.0, 1),
+                                                  (ticks_to_next_bar if animated else 0.0, 0.0),
+                                                  ((ticks_to_next_bar + anim_duration) if animated else 0.0, 1.0)))
+            x_pos = self.left_label.pos[0]
+            self.left_label_slide = (tick, KFAnim((0.0, x_pos),
+                                                  (ticks_to_next_bar if animated else 0.0, x_pos),
+                                                  ((ticks_to_next_bar + 1) if animated else 0.0, -100.0),
+                                                  ((ticks_to_next_bar + anim_duration) if animated else 0.0, x_pos)))
+            self.scheduler.post_at_tick(self.update_left_label, next_bar + 1)
+
+
         if not init:
             self.changing = 1
+
+    def update_left_label(self, tick, ignore):
+        self.left_label.color = self.right_label.color
+        self.left_label.text = Conductor.harmony_string()
 
     def on_update(self):
         tick = self.scheduler.get_tick()
@@ -177,6 +245,33 @@ class MeasureBar(InstructionGroup):
             self.back_color.a = self.back_alpha
             # self.front_color.a = self.front_alpha
 
+        # Label animations
+        if self.left_label_alpha:
+            start_tick, anim = self.left_label_alpha
+            self.left_label.opacity = float(anim.eval(tick - start_tick))
+
+            if not anim.is_active(tick - start_tick):
+                self.left_label_alpha = None
+        if self.right_label_alpha:
+            start_tick, anim = self.right_label_alpha
+            self.right_label.opacity = float(anim.eval(tick - start_tick))
+
+            if not anim.is_active(tick - start_tick):
+                self.right_label_alpha = None
+        # Slides
+        if self.left_label_slide:
+            start_tick, anim = self.left_label_slide
+            self.left_label.pos = (float(anim.eval(tick - start_tick)), self.left_label.pos[1])
+
+            if not anim.is_active(tick - start_tick):
+                self.left_label_slide = None
+        if self.right_label_slide:
+            start_tick, anim = self.right_label_slide
+            self.right_label.pos = (float(anim.eval(tick - start_tick)), self.right_label.pos[1])
+
+            if not anim.is_active(tick - start_tick):
+                self.right_label_slide = None
+
 
         tick_progress = tick-(next_bar-Conductor.ticks_per_measure)
 
@@ -190,5 +285,3 @@ class MeasureBar(InstructionGroup):
                 self.changing = 0
         else:
             self.third_color.a = self.third_line_anim.eval(tick_progress)
-
-

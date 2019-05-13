@@ -126,7 +126,11 @@ class MainWidget(BaseWidget) :
         self.shape_creator = None
         self.shape_editor = None
 
-        self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
+        left_label = Label(font_name='res/Exo-Bold.otf')
+        right_label = Label(font_name='res/Exo-Bold.otf')
+        self.game.add_widget(left_label)
+        self.game.add_widget(right_label)
+        self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched, left_label, right_label)
         self.game.canvas.add(self.measure_bar)
 
         # MIDI
@@ -134,7 +138,7 @@ class MainWidget(BaseWidget) :
         self.keyboard = Keyboard(self.on_chord_change, port=KEYBOARD_PORT)
 
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
-                  pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
+                  pos=(Window.width / 2.0 - 50.0, Window.height - 200.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
         self.game.add_widget(self.label)
 
