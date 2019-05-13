@@ -102,6 +102,7 @@ class MeasureBar(InstructionGroup):
         self.front_line.size = (self.x_max * self.progress, self.height)
         self.third_line.size = (self.x_max, self.height)
         self.back_line.size = (self.x_max, self.height)
+        self.right_label.pos = (x_max - 40.0 - 180.0, self.height + 20.0)
 
 
     def set_progress(self, p):
