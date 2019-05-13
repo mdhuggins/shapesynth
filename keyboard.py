@@ -45,7 +45,7 @@ class Keyboard(object):
                 # Update chord
                 self.chord = self.held_notes.copy()
                 self.chord_cb(self.chord)
-            else:
+            elif note in self.held_notes:
                 # Remove note
                 self.held_notes.remove(note)
 

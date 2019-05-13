@@ -29,6 +29,8 @@ class Shape(InstructionGroup):
     Represents a 2D shape on the canvas.
     """
 
+    hit_test_margin = 40.0
+
     def __init__(self, points, palette, sched, mixer):
         """
         points - a list of points bounding the shape
@@ -109,7 +111,7 @@ class Shape(InstructionGroup):
         Returns True if the given point is contained within the mesh.
         """
         dist = np.linalg.norm(point[:2] - self.screen_center)
-        return dist <= self.diameter / 2.0
+        return dist <= self.diameter / 1.414 + Shape.hit_test_margin
 
     def update_mesh(self):
         """
@@ -425,7 +427,7 @@ class ShapeCreator(InstructionGroup):
         # Handle new points
         if self.accepting_points:
             new_pos = self.source()
-            if new_pos is not None and ((len(new_pos) > 2 and (new_pos[2] > 0.7 or new_pos[1] <= 0.1)) or len(self.points) > 800):
+            if new_pos is None or ((len(new_pos) > 2 and (new_pos[2] > 0.7 or new_pos[1] <= 0.1)) or len(self.points) > 800):
                 # The user stopped drawing - cancel
                 self.accepting_points = False
                 self.on_complete([])
@@ -456,6 +458,7 @@ class ShapeEditor(InstructionGroup):
 
     END_CLICK = "click"
     END_POSE = "pose"
+    offscreen_threshold = 5.0
 
     def __init__(self, hsv, shape, source, on_complete, end="click"):
         """
@@ -523,17 +526,25 @@ class ShapeEditor(InstructionGroup):
 
 
         self.translate.xy = pos[:2] - self.original_position[:2]
+        if self.will_remove(pos):
+            # Remove the shape
+            self.accepting_points = False
+            self.on_complete(self, True)
+            return
         if len(pos) > 2:
             new_scale = 1 + (pos[2] - self.original_position[2])
-            if pos[2] > 0.8 and self.last_position is not None and (pos[2] - self.last_position[2]) > 0.2:
-                self.accepting_points = False
-                self.on_complete(self, True)
-                return
             self.scale.x = new_scale
             self.scale.y = new_scale
 
     def get_current_pos(self):
         return self.current_position
+
+    def will_remove(self, pos):
+        """Returns True if the given position represents a shape deletion gesture."""
+        if self.end_mode == ShapeEditor.END_POSE:
+            return pos[2] > 0.8 and self.last_position is not None and (pos[2] - self.last_position[2]) > 0.2
+        else:
+            return pos[0] < ShapeEditor.offscreen_threshold or pos[0] > Window.width - ShapeEditor.offscreen_threshold or pos[1] < ShapeEditor.offscreen_threshold or pos[1] > Window.height - ShapeEditor.offscreen_threshold
 
     def on_update(self, dt):
         # Handle the background animation
@@ -574,12 +585,11 @@ class ShapeEditor(InstructionGroup):
             if self.gesture_pos_idx == 0 and new_pos is not None:
                 self.add_position(new_pos)
 
-        # Update composer/synth
-        self.move_clock += dt
-        if self.move_clock > self.move_refresh_rate:
-            print("Updating shape with move")
-            self.move_clock = 0
-            self.on_move()
+            # Update composer/synth
+            self.move_clock += dt
+            if self.move_clock > self.move_refresh_rate:
+                self.move_clock = 0
+                self.on_move()
 
     def on_move(self):
         # Update the shape
@@ -592,6 +602,8 @@ class ShapeEditor(InstructionGroup):
         self.translate.xy = (0.0, 0.0)
         self.scale.x = 1.0
         self.scale.y = 1.0
+        self.shape_center = self.shape.screen_center
+        self.scale.origin = self.shape_center
 
 
         self.shape.make_shape_properties()

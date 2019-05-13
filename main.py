@@ -271,6 +271,10 @@ class MainWidget(BaseWidget) :
         self.touch_pos = np.array(touch.pos)
     def on_touch_up(self, touch):
         self.touch_pos = None
+        # Reenable other gestures
+        for gesture in self.gestures:
+            gesture.set_enabled(True)
+
     def on_touch_move(self, touch):
         self.touch_pos = np.array(touch.pos)
     def on_mouse_pos(self, window, pos):
@@ -409,9 +413,10 @@ class MainWidget(BaseWidget) :
                 self.shape_creator = None
             self.shape_creator.hide_transition([], on_creator_completion)
 
-        # Reenable other gestures
-        for gesture in self.gestures:
-            gesture.set_enabled(True)
+        # Reenable other gestures only if using Kinect (if mouse, wait until touch up)
+        if USE_KINECT:
+            for gesture in self.gestures:
+                gesture.set_enabled(True)
 
         self.label.text = ''
 
@@ -436,9 +441,10 @@ class MainWidget(BaseWidget) :
             editor.shape.update_sound()
             self.interaction_anims.add(editor.shape)
 
-        # Reenable other gestures
-        for gesture in self.gestures:
-            gesture.set_enabled(True)
+        # Reenable other gestures only if using Kinect (if mouse, wait until touch up)
+        if USE_KINECT:
+            for gesture in self.gestures:
+                gesture.set_enabled(True)
 
         self.label.text = ''
 
