@@ -127,7 +127,11 @@ class MainWidget(BaseWidget) :
         self.shape_creator = None
         self.shape_editor = None
 
-        self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched)
+        left_label = Label(font_name='res/Exo-Bold.otf')
+        right_label = Label(font_name='res/Exo-Bold.otf')
+        self.game.add_widget(left_label)
+        self.game.add_widget(right_label)
+        self.measure_bar = MeasureBar(Window.width, int(Window.height*0.02), self.palette, self.sched, left_label, right_label)
         self.game.canvas.add(self.measure_bar)
 
         # MIDI
@@ -135,7 +139,7 @@ class MainWidget(BaseWidget) :
         self.keyboard = Keyboard(self.on_chord_change, port=KEYBOARD_PORT)
 
         self.label = Label(text = "", valign='top', halign='center', font_size='20sp',
-                  pos=(Window.width / 2.0 - 50.0, 50.0), font_name='res/Exo-Bold.otf',
+                  pos=(Window.width / 2.0 - 50.0, Window.height - 200.0), font_name='res/Exo-Bold.otf',
                   text_size=(Window.width, 200.0))
         self.label.opacity = 0
         self.game.add_widget(self.label)
@@ -321,6 +325,10 @@ class MainWidget(BaseWidget) :
         self.touch_pos = np.array(touch.pos)
     def on_touch_up(self, touch):
         self.touch_pos = None
+        # Reenable other gestures
+        for gesture in self.gestures:
+            gesture.set_enabled(True)
+
     def on_touch_move(self, touch):
         self.touch_pos = np.array(touch.pos)
     def on_mouse_pos(self, window, pos):
@@ -478,9 +486,10 @@ class MainWidget(BaseWidget) :
                 self.shape_creator = None
             self.shape_creator.hide_transition([], on_creator_completion)
 
-        # Reenable other gestures
-        for gesture in self.gestures:
-            gesture.set_enabled(True)
+        # Reenable other gestures only if using Kinect (if mouse, wait until touch up)
+        if USE_KINECT:
+            for gesture in self.gestures:
+                gesture.set_enabled(True)
 
         # self.label.text = ''
         self.fade_out_label()
@@ -507,22 +516,22 @@ class MainWidget(BaseWidget) :
             editor.shape.update_sound()
             self.interaction_anims.add(editor.shape)
 
-        # Reenable other gestures
-        for gesture in self.gestures:
-            gesture.set_enabled(True)
-            gesture.set_enabled(True)
+        # Reenable other gestures only if using Kinect (if mouse, wait until touch up)
+        if USE_KINECT:
+            for gesture in self.gestures:
+                gesture.set_enabled(True)
 
         # self.label.text = ''
         self.fade_out_label()
 
     def fade_out_label(self):
         if self.label.opacity == 1:
-            Animation(opacity=0, duration=0.25).start(self.label)
+            Animation(opacity=0, duration=0.5).start(self.label)
 
     def fade_in_label(self):
         if self.label.opacity == 0:
             self.label.opacity = 0.001
-            Animation(opacity=1, duration=0.25).start(self.label)
+            Animation(opacity=1, duration=0.5).start(self.label)
 
     def fade_out_in_label(self, t):
         if self.label.opacity == 0:
@@ -531,8 +540,8 @@ class MainWidget(BaseWidget) :
         else:
             def fade_in(l):
                 l.text = t
-                Animation(opacity=1, duration=0.25).start(l)
-            fade_out = Animation(opacity=0.001, duration=0.25)
+                Animation(opacity=1, duration=0.5).start(l)
+            fade_out = Animation(opacity=0.001, duration=0.5)
             fade_out.on_complete = fade_in
             fade_out.start(self.label)
 
