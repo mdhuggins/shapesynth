@@ -171,7 +171,7 @@ def load_audio_config(py_audio = None):
         out['inputdevice'] = 'None'
 
     if 'buffersize' not in out:
-        out['buffersize'] = 512
+        out['buffersize'] = 768
 
     if 'samplerate' not in out:
         out['samplerate'] = 44100
