@@ -232,7 +232,7 @@ class MainWidget(BaseWidget) :
         harmony = lookup(keycode[1], '123456', HARMONIES)
         if harmony is not None:
             is_different = (harmony != Conductor.harmony)
-            Conductor.harmony = harmony
+            Conductor.set_harmony(harmony)
             if is_different:
                 self.measure_bar.update_color()
                 for shape in self.shapes:
@@ -252,7 +252,7 @@ class MainWidget(BaseWidget) :
         """
         new_harmony = [pitch % 12 for pitch in sorted(pitches)]
         if new_harmony != Conductor.harmony:
-            Conductor.harmony = new_harmony
+            Conductor.set_harmony(new_harmony)
             self.measure_bar.update_color()
             for shape in self.shapes:
                 shape.composer.clear_notes()
