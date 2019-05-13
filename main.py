@@ -189,7 +189,9 @@ class MainWidget(BaseWidget) :
         self.last_width = Window.width
         self.last_height = Window.height
 
-        self.first_shape_t = None
+        self.first_shape_t = -1
+        self.showed_draw = False
+        self.showed_move = False
         #
         #
         # self.help_period = 10  # In seconds
@@ -389,12 +391,16 @@ class MainWidget(BaseWidget) :
             self.shape_creator = ShapeCreator(self.drawing_hsv, gesture.source, self.on_shape_creator_complete)
             self.interaction_anims.add(self.shape_creator)
 
-            if USE_KINECT:
-                new_text = "Move your hand to draw a closed shape."
-            else:
-                new_text = "Move the cursor to draw a closed shape."
+            if not self.showed_draw:
+                self.showed_draw = True
+                if USE_KINECT:
+                    new_text = "Move your hand to draw a closed shape."
+                else:
+                    new_text = "Move the cursor to draw a closed shape."
 
-            self.fade_out_in_label(new_text)
+                self.fade_out_in_label(new_text)
+            else:
+                self.fade_out_label()
 
             # Disable other gestures while creating a shape
             for gest in self.gestures:
@@ -413,12 +419,16 @@ class MainWidget(BaseWidget) :
             self.shape_editor = ShapeEditor(gesture.identifier.hsv, editing_shape, gesture.source, self.on_shape_editor_complete, end=ShapeEditor.END_POSE if USE_KINECT else ShapeEditor.END_CLICK)
             self.interaction_anims.add(self.shape_editor)
 
-            if USE_KINECT:
-                new_text = "Move your hand to change the shape's position and size.\nTo delete the shape, throw it over your shoulder."
-            else:
-                new_text = "Move the cursor to drag the shape.\nTo delete the shape, drag it offscreen."
+            if not self.showed_move:
+                self.showed_move = True
+                if USE_KINECT:
+                    new_text = "Move the shape to change the sound, or drag it off-screen to delete."
+                else:
+                    new_text = "Move the shape to change the sound, or drag it off-screen to delete."
 
-            self.fade_out_in_label(new_text)
+                self.fade_out_in_label(new_text)
+            else:
+                self.fade_out_label()
 
 
             # Disable other gestures while editing a shape
@@ -477,7 +487,7 @@ class MainWidget(BaseWidget) :
             else:
                 self.gestures.insert(0, HoldGesture(new_shape, self.get_touch_pos, self.on_hold_gesture, hit_test=new_shape.hit_test, on_trigger=self.on_hold_gesture_trigger, on_cancel=self.on_hold_gesture_cancel))
 
-            if len(self.shapes) == 1:
+            if self.first_shape_t == -1:
                 self.first_shape_t = time.time()
 
         else:
