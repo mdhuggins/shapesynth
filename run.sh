@@ -3,6 +3,8 @@
 # Config
 PYTHON_PATH=/Library/Frameworks/Python.framework/Versions/3.6/bin/python3
 
+MIDI_PORT=0
+
 USE_KINECT=false
 SYNAPSE=../Synapse-Mac/Synapse.app/Contents/MacOS/Synapse  # Only needed if USE_KINECT is true
 
@@ -16,4 +18,4 @@ source ./setup.sh $PYTHON_PATH true
 
 # Run
 cd src
-python main.py $USE_KINECT
+python main.py $USE_KINECT $MIDI_PORT
