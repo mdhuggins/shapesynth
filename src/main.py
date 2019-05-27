@@ -278,7 +278,7 @@ class MainWidget(BaseWidget) :
                     new_text = 'Hold your hand out over a shape to grab it.'
                 else:
                     new_text = 'Click and hold a shape to grab it.'
-                print("in")
+
                 if self.label.text != new_text:
                     self.label.text = new_text
                     self.fade_in_label()

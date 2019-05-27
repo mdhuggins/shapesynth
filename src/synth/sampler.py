@@ -206,10 +206,10 @@ class Sampler(object):
         # Duration
         self.duration = 2*(bass) + 10*(cello) + 3*(piano) + 2*(glock)
         self.duration /= (bass) + (cello) + (piano) + (glock)
-        print("duration", self.duration)
+        # print("duration", self.duration)
 
         self.mix = [bass/norm, cello/norm, piano/norm, glock/norm]
-        print("mix", self.mix)
+        # print("mix", self.mix)
 
     def play_note(self, pitch, gain):
 

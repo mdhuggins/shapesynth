@@ -1,4 +1,19 @@
-# Starts up Synapse, which is expected to be in the directory outisde shapesynth, then starts ShapeSynth.
+#!/usr/bin/env bash
 
-../Synapse-Mac/Synapse.app/Contents/MacOS/Synapse &
-python main.py true
+# Config
+PYTHON_PATH=/Library/Frameworks/Python.framework/Versions/3.6/bin/python3
+
+USE_KINECT=false
+SYNAPSE=../Synapse-Mac/Synapse.app/Contents/MacOS/Synapse  # Only needed if USE_KINECT is true
+
+# Launch synapse if using kinect
+if [[ USE_KINECT ]]; then
+    $SYNAPSE &
+fi
+
+# Setup
+source ./setup.sh $PYTHON_PATH true
+
+# Run
+cd src
+python main.py $USE_KINECT
