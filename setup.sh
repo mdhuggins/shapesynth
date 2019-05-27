@@ -15,44 +15,35 @@ if [[ $1 != true ]]; then  # Allow override
     fi
 fi
 
-# Infer python path
-if [ "$(cat .shapesynth_settings 2>/dev/null || echo "")" != "" ]; then
-  PYTHONPATH=$(cat .shapesynth_settings)
-else
-  function version_gt() { test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"; }
-  function version_appropriate() { ! version_gt "3.5.0" $1; }
-  function get_python_version() { $1 -c "import platform; print(platform.python_version())" 2>/dev/null || echo "1.0"; }
-
-  # Check common python executable names
-  pythonversions=($(which python) $(which python3) $(which python3.6) $(which py3) $(which py3.6) $(which python3.5) $(which py3.5))
-
-  for version in $pythonversions; do
-    if $(version_appropriate $(get_python_version $version)); then
-      PYTHONPATH=$version
-      break
-    fi
-  done
-
-  if [[ $PYTHONPATH == "" ]]; then
-    echo "Couldn't find a compatible Python path. Tried:"
-    echo; printf ' * %s\n' "${pythonversions[@]}"; echo
-    while ( ! $(version_appropriate $(get_python_version $PYTHONPATH)) ); do
-      read -e -p "ShapeSynth requires Python 3.5 or later. Enter a path to the Python executable: " PYTHONPATH
-      if $(version_appropriate $(get_python_version $PYTHONPATH)); then
-        echo "Appropriate!"
-      fi
-    done
-  else
-    echo "Using Python path $PYTHONPATH"
-  fi
-
-  echo $PYTHONPATH > .shapesynth_settings
-fi
 
 # Check if virtual environment exists
 if test -f ".virtualenv/bin/activate"; then
     :
 else
+    # Infer python path
+    function version_appropriate() { $1 -c "import sys; print(sys.version_info > (3, 5))" 2>/dev/null || echo "false"; }
+
+    # Check common python executable names
+    pythonpaths=($(which python) $(which python3) $(which python3.6) $(which py3) $(which py3.6) $(which python3.5) $(which py3.5))
+
+    for path in $pythonpaths; do
+        if $(version_appropriate $path); then
+            PYTHONPATH=$path
+            break
+        fi
+    done
+
+    if [[ $PYTHONPATH == "" ]]; then
+        echo "Couldn't find a compatible Python path. Tried:"
+        echo; printf ' * %s\n' "${pythonpaths[@]}"; echo
+        echo "ShapeSynth requires Python 3.5 or later."
+        while ( ! $(version_appropriate $PYTHONPATH ) ); do
+            read -e -p "Enter a path to the Python executable: " PYTHONPATH
+        done
+    else
+        echo "Using Python path $PYTHONPATH"
+    fi
+
     echo "Creating virtual environment..."
     mkdir .virtualenv
     virtualenv --python=$PYTHONPATH --prompt="(ShapeSynth) " .virtualenv
