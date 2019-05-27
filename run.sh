@@ -9,7 +9,7 @@ USE_KINECT=false
 SYNAPSE=../Synapse-Mac/Synapse.app/Contents/MacOS/Synapse  # Only needed if USE_KINECT is true
 
 # Launch synapse if using kinect
-if [[ USE_KINECT ]]; then
+if [[ USE_KINECT == true ]]; then
     $SYNAPSE &
 fi
 
