@@ -11,9 +11,8 @@
 
 ## Running ShapeSynth - No Kinect
 
-1. If needed, modify PYTHON_PATH in run.sh. The default is /Library/Frameworks/Python.framework/Versions/3.6/bin/python3. Python 3.5/3.6 is required.
+1. Make sure you have Python 3.5 or later installed.
 2. If using a MIDI keyboard, you might need to modify MIDI_PORT in run.sh. The default is 0.
-2. Make sure you have set `run.sh` to be executable (i.e. `chmod +x run.sh`)
 3. Run the script: `./run.sh`.
 
 ## Running ShapeSynth - Kinect

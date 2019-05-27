@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
 # Config
-PYTHON_PATH=/Library/Frameworks/Python.framework/Versions/3.6/bin/python3
-
 MIDI_PORT=0
 
 USE_KINECT=false
@@ -14,7 +12,7 @@ if [[ USE_KINECT == true ]]; then
 fi
 
 # Setup
-source ./setup.sh $PYTHON_PATH true
+source ./setup.sh true
 
 # Run
 cd src
