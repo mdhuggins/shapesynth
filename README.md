@@ -12,8 +12,10 @@
 ## Running ShapeSynth - No Kinect
 
 1. Make sure you have Python 3.5 or later installed.
-2. If using a MIDI keyboard, you might need to modify MIDI_PORT in run.sh. The default is 0.
+2. If using a MIDI keyboard, you might need to modify `MIDI_PORT` in run.sh. The default is 0.
 3. Run the script: `./run.sh`.
+
+You can also run the application without using the run script: first install the dependencies using `pip install -r requirements.txt`, then cd into the `src` directory and run `python main.py`.
 
 ## Running ShapeSynth - Kinect
 
