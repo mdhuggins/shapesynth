@@ -61,4 +61,20 @@ else
     pip install -r requirements.txt
 fi
 
+printf '\nBREW installation/update\n'
+if ! type brew > /dev/null; then
+    printf "Brew not found... installing\n"
+    /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+else
+    printf "Updating brew\n"
+    brew update
+fi
+
+
+printf '\nInstalling portaudio:\n'
+brew install portaudio
+
+printf '\nInstalling fluid-synth:\n'
+brew install fluid-synth
+
 echo "Setup done!"
